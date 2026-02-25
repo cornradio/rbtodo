@@ -151,11 +151,22 @@ body.resizing {
 }
 
 .mobile-app-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-family: var(--font-heading);
     font-weight: 600;
     font-size: 1.1rem;
     color: var(--accent-color);
 }
+
+.mobile-logo {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    object-fit: contain;
+}
+
 
 .drawer-backdrop {
     display: none;

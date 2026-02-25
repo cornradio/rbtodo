@@ -109,3 +109,8 @@ createNewTodo	@	app.js:472
 fullscreen 放到右下。在saved 右边。 
 saved状态显示更多信息
 增加reload按钮，允许手动从服务器load最新信息。
+## v1.4.1
+我在tick box 的之候感觉有延迟消除延迟。
+list 也需要状态信息、同步按钮 放在底部。 and 我添加了 
+icon.png ，替换图标成这个。
+rb 图标在网页版 也要加上。 然后notes里面把 fullscreen挪到顶部，x的左边。

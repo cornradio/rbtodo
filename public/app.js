@@ -47,6 +47,9 @@ const mobileSearchBtn = document.getElementById('mobile-search-btn');
 const drawerBackdrop = document.getElementById('drawer-backdrop');
 const openSearchBtn = document.getElementById('open-search-btn');
 const manualReloadBtn = document.getElementById('manual-reload');
+const listManualReloadBtn = document.getElementById('list-manual-reload');
+const listSaveStatus = document.getElementById('list-save-status');
+const listTotalStats = document.getElementById('list-total-stats');
 
 // --- Initialization ---
 async function init() {
@@ -125,6 +128,11 @@ function setupEventListeners() {
     drawerBackdrop?.addEventListener('click', closeAllDrawers);
 
     manualReloadBtn?.addEventListener('click', manualReloadTodo);
+    listManualReloadBtn?.addEventListener('click', async () => {
+        listManualReloadBtn.classList.add('spinning');
+        await loadTodos();
+        setTimeout(() => listManualReloadBtn.classList.remove('spinning'), 600);
+    });
 }
 
 function setupKeyboardShortcuts() {
@@ -244,8 +252,12 @@ async function loadTodos() {
 
 async function saveTodoData(todo) {
     const statusBox = saveStatus.parentElement;
+    const listStatusBox = listSaveStatus.parentElement;
+
     saveStatus.textContent = 'Saving...';
+    listSaveStatus.textContent = 'Saving...';
     statusBox.classList.add('saving');
+    listStatusBox.classList.add('saving');
 
     const startTime = Date.now();
     try {
@@ -265,14 +277,19 @@ async function saveTodoData(todo) {
         }
 
         saveStatus.textContent = 'Saved';
+        listSaveStatus.textContent = 'Saved';
         statusBox.classList.remove('saving');
+        listStatusBox.classList.remove('saving');
+
         await fetchHighlightedDates();
         await fetchTimelineStats();
         renderTimeline();
         renderCalendar();
     } catch (e) {
         saveStatus.textContent = 'Error';
+        listSaveStatus.textContent = 'Error';
         statusBox.classList.remove('saving');
+        listStatusBox.classList.remove('saving');
         console.error(e);
     }
 }
@@ -378,6 +395,9 @@ window.goToday = () => {
 function renderTodoLists() {
     renderList(state.oldTodos, oldTodosEl, true);
     renderList(state.todos, todayTodosEl, false);
+
+    const remainingCount = state.todos.filter(t => !t.completed).length + state.oldTodos.filter(t => !t.completed).length;
+    listTotalStats.textContent = `${remainingCount} item${remainingCount !== 1 ? 's' : ''} remaining`;
 }
 
 function renderList(todos, container, isOld) {
@@ -606,8 +626,16 @@ function openTodo(todo) {
 
 async function toggleTodoComplete(todo) {
     todo.completed = !todo.completed;
-    await saveTodoData(todo);
-    loadTodos();
+
+    // 1. 立即更新本地 UI (Optimistic Update)
+    renderTodoLists();
+
+    // 2. 在后台异步保存，不阻塞 UI
+    saveTodoData(todo).then(() => {
+        // 保存后刷新侧边栏统计信息，但不重新加载列表以防闪烁
+        fetchHighlightedDates();
+        fetchTimelineStats().then(() => renderTimeline());
+    });
 }
 
 async function deleteCurrentTodo() {

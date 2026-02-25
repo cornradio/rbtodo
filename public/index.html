@@ -23,7 +23,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="RB Todo">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/4481/4481307.png">
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="apple-touch-icon" href="icon.png">
 </head>
 
 <body class="light-mode">
@@ -31,7 +32,10 @@
         <!-- Mobile Header (Visible only on mobile) -->
         <header class="mobile-top-bar" id="mobile-top-bar">
             <button id="mobile-menu-btn" class="icon-btn">☰</button>
-            <div class="mobile-app-title">RB Todo</div>
+            <div class="mobile-app-title">
+                <img src="icon.png" alt="RB" class="mobile-logo">
+                <span>RB Todo</span>
+            </div>
             <button id="mobile-search-btn" class="icon-btn">🔍</button>
         </header>
 
@@ -41,6 +45,9 @@
                 <div class="toggle-anchor"></div>
             </div>
             <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <img src="icon.png" alt="RB Logo" id="sidebar-icon">
+                </div>
                 <button id="open-search-btn" class="sidebar-search-trigger" title="Search (Ctrl+Shift+P)">
                     <span>Search...</span>
                     <span class="shortcut-hint">⌘P</span>
@@ -70,24 +77,39 @@
 
         <!-- Main Content: Todo List -->
         <main class="todo-list-section" id="todo-list-section">
-            <section class="section-group">
-                <header class="section-header">
-                    <h2>OLD TODOS (UNFINISHED)</h2>
-                </header>
-                <div id="old-todos-list" class="todo-items-container">
-                    <!-- Old todos will be injected here -->
-                </div>
-            </section>
+            <div class="todo-list-content">
+                <section class="section-group">
+                    <header class="section-header">
+                        <h2>OLD TODOS (UNFINISHED)</h2>
+                    </header>
+                    <div id="old-todos-list" class="todo-items-container">
+                        <!-- Old todos will be injected here -->
+                    </div>
+                </section>
 
-            <section class="section-group">
-                <header class="section-header">
-                    <h2 id="current-date-title">TODAY'S TODOS</h2>
-                    <button id="add-todo-btn" class="add-btn">+ New Todo</button>
-                </header>
-                <div id="today-todos-list" class="todo-items-container">
-                    <!-- Today's todos will be injected here -->
+                <section class="section-group">
+                    <header class="section-header">
+                        <h2 id="current-date-title">TODAY'S TODOS</h2>
+                        <button id="add-todo-btn" class="add-btn">+ New Todo</button>
+                    </header>
+                    <div id="today-todos-list" class="todo-items-container">
+                        <!-- Today's todos will be injected here -->
+                    </div>
+                </section>
+            </div>
+
+            <footer class="todo-list-footer">
+                <div class="footer-left">
+                    <span id="list-total-stats">0 items remaining</span>
                 </div>
-            </section>
+                <div class="footer-right">
+                    <button id="list-manual-reload" class="icon-btn reload-btn"
+                        title="Reload List from Server">↻</button>
+                    <div class="save-status-box">
+                        <span id="list-save-status">Saved</span>
+                    </div>
+                </div>
+            </footer>
         </main>
 
         <!-- Resize Handle -->
@@ -99,7 +121,10 @@
                 <p>Select a todo or create a new one to start editing.</p>
             </div>
             <div id="editor-container" class="editor-container hidden">
-                <button id="close-editor-top" class="icon-btn close-btn-top" title="Close">✕</button>
+                <div class="editor-top-actions">
+                    <button id="fullscreen-editor" class="icon-btn" title="Full Screen (Ctrl+Shift+F)">⛶</button>
+                    <button id="close-editor-top" class="icon-btn close-btn-top" title="Close">✕</button>
+                </div>
                 <input type="text" id="todo-title-input" placeholder="Todo Title..." class="title-input">
 
                 <div id="todo-content-editor" contenteditable="true" class="content-editor"
@@ -118,8 +143,6 @@
                         <div class="save-status-box">
                             <span id="save-status">Saved</span>
                         </div>
-                        <button id="fullscreen-editor" class="icon-btn fullscreen-btn-large"
-                            title="Full Screen (Ctrl+Shift+F)">⛶</button>
                     </div>
                 </div>
             </div>

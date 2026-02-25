@@ -1,8 +1,16 @@
 .todo-list-section {
     flex: 1;
     min-width: 200px;
-    padding: 40px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-color);
+}
+
+.todo-list-content {
+    flex: 1;
     overflow-y: auto;
+    padding: 40px;
 }
 
 .section-group {
@@ -94,10 +102,38 @@
     opacity: 0.6;
 }
 
+.todo-list-footer {
+    flex-shrink: 0;
+    padding: 12px 24px;
+    background-color: var(--sidebar-bg);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.footer-left {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.footer-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
 @media (max-width: 768px) {
     .todo-list-section {
+        padding: 0;
+    }
+
+    .todo-list-content {
         padding: 20px;
-        overflow-y: auto;
+    }
+
+    .todo-list-footer {
+        padding-bottom: calc(12px + env(safe-area-inset-bottom));
     }
 
     .todo-item {
