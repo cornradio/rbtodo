@@ -56,13 +56,7 @@ async function init() {
 
 function setupEventListeners() {
     document.getElementById('add-todo-btn').addEventListener('click', createNewTodo);
-    document.getElementById('close-editor').addEventListener('click', () => {
-        editorPane.classList.add('hidden-right');
-        resizer.classList.add('hidden'); // Hide resizer too
-        state.selectedTodo = null;
-        if (state.isFullscreen) toggleFullscreen();
-        renderTodoLists();
-    });
+    document.getElementById('close-editor').addEventListener('click', closeEditor);
 
     titleInput.addEventListener('input', debounce(autoSave, 1000));
     contentEditor.addEventListener('input', debounce(autoSave, 1000));
@@ -135,7 +129,31 @@ function setupKeyboardShortcuts() {
                 }
             }
         }
+
+        // ESC key to close overlays or editor
+        if (e.key === 'Escape') {
+            if (!searchOverlay.classList.contains('hidden')) {
+                searchOverlay.classList.add('hidden');
+            } else if (!exportModal.classList.contains('hidden')) {
+                exportModal.classList.add('hidden');
+            } else if (!editorPane.classList.contains('hidden-right') || !editorPane.classList.contains('hidden')) {
+                closeEditor();
+            }
+        }
     });
+}
+
+function closeEditor() {
+    editorPane.classList.add('hidden-right');
+    editorPane.classList.add('hidden'); // Ensure no layout impact
+    resizer.classList.add('hidden');
+    state.selectedTodo = null;
+    if (state.isFullscreen) {
+        state.isFullscreen = false;
+        editorPane.classList.remove('fullscreen');
+        fullscreenBtn.textContent = '⛶';
+    }
+    renderTodoLists();
 }
 
 // --- Data Fetching ---
@@ -315,6 +333,7 @@ function renderList(todos, container, isOld) {
         item.draggable = true;
         item.dataset.id = todo.id;
         item.dataset.index = index;
+        item.dataset.isOld = isOld;
 
         const checkbox = document.createElement('div');
         checkbox.className = `todo-checkbox ${todo.completed ? 'checked' : ''}`;
@@ -358,7 +377,8 @@ function renderList(todos, container, isOld) {
         // Drag & Drop
         item.addEventListener('dragstart', handleDragStart);
         item.addEventListener('dragover', handleDragOver);
-        item.addEventListener('drop', (e) => handleDrop(e, container, isOld));
+        item.addEventListener('dragleave', handleDragLeave);
+        item.addEventListener('drop', (e) => handleDrop(e, isOld));
         item.addEventListener('dragend', handleDragEnd);
 
         container.appendChild(item);
@@ -376,31 +396,55 @@ function handleDragStart(e) {
 
 function handleDragOver(e) {
     e.preventDefault();
+    this.classList.add('drag-over');
     e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDragLeave(e) {
+    this.classList.remove('drag-over');
 }
 
 function handleDragEnd(e) {
     this.classList.remove('dragging');
+    document.querySelectorAll('.todo-item').forEach(el => el.classList.remove('drag-over'));
     draggedItem = null;
 }
 
-function handleDrop(e, container, isOld) {
+function handleDrop(e, isOld) {
     e.preventDefault();
-    if (draggedItem !== this) {
-        const items = Array.from(container.children);
-        const fromIndex = items.indexOf(draggedItem);
-        const toIndex = items.indexOf(this);
+    this.classList.remove('drag-over');
 
-        if (fromIndex !== -1 && toIndex !== -1) {
-            const list = isOld ? state.oldTodos : state.todos;
-            const [reorderedItem] = list.splice(fromIndex, 1);
-            list.splice(toIndex, 0, reorderedItem);
+    if (!draggedItem || draggedItem === this) return;
 
-            renderTodoLists();
-            if (!isOld) {
-                saveTodosOrder(state.selectedDate, state.todos);
-            }
+    const sourceIsOld = draggedItem.dataset.isOld === 'true';
+    const targetIsOld = isOld;
+    const fromIndex = parseInt(draggedItem.dataset.index);
+    const toIndex = parseInt(this.dataset.index);
+
+    if (sourceIsOld === targetIsOld) {
+        // Same list reordering
+        const list = sourceIsOld ? state.oldTodos : state.todos;
+        const [movedItem] = list.splice(fromIndex, 1);
+        list.splice(toIndex, 0, movedItem);
+    } else {
+        // Move between lists
+        const sourceList = sourceIsOld ? state.oldTodos : state.todos;
+        const targetList = targetIsOld ? state.oldTodos : state.todos;
+        const [movedItem] = sourceList.splice(fromIndex, 1);
+
+        if (!targetIsOld) {
+            movedItem.date = state.selectedDate;
+            saveTodoData(movedItem);
+        } else {
+            // Moving back to old (just moves in memory for now)
+            // In a real app we might update the date to yesterday
         }
+        targetList.splice(toIndex, 0, movedItem);
+    }
+
+    renderTodoLists();
+    if (!targetIsOld) {
+        saveTodosOrder(state.selectedDate, state.todos);
     }
 }
 
@@ -468,8 +512,12 @@ function updateDateTitle() {
 }
 
 function createNewTodo() {
+    const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : Date.now().toString(36) + Math.random().toString(36).substring(2);
+
     const newTodo = {
-        id: crypto.randomUUID(),
+        id: id,
         title: '',
         content: '',
         completed: false,
@@ -483,7 +531,8 @@ function createNewTodo() {
 function openTodo(todo) {
     state.selectedTodo = todo;
     editorPane.classList.remove('hidden-right');
-    resizer.classList.remove('hidden'); // Show resizer
+    editorPane.classList.remove('hidden'); // Show resizer
+    resizer.classList.remove('hidden');
     editorSection.classList.remove('hidden');
     editorPlaceholder.classList.add('hidden');
 
@@ -530,10 +579,7 @@ async function deleteCurrentTodo() {
             await loadTodos();
             openTodo(nextTodo);
         } else {
-            editorPane.classList.add('hidden-right');
-            resizer.classList.add('hidden');
-            state.selectedTodo = null;
-            await loadTodos();
+            closeEditor();
         }
 
         await fetchHighlightedDates();

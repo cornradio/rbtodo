@@ -89,3 +89,12 @@ notes的滚动栏使用更加隐蔽、符合主题的颜色样式
 最好是有个垃圾桶可以放到timeline底部，删除后自动放在那里 那里删除就不能撤销了。
 
 trashbin不要放在左侧 ， 他要类似一天一样 你可以找一个很久以后 比如 2099年的一天作为垃圾桶。
+
+- [x]  添加新todo按钮不好使了
+
+app.js:472 Uncaught TypeError: crypto.randomUUID is not a function
+at HTMLButtonElement.createNewTodo (app.js:472:20)
+createNewTodo	@	app.js:472
+
+- [x]  在notes頁面按下esc就可以相当于 x 键， 可以关闭notes
+- [x]  有时候感觉notes在关闭状态下 还会影响 todolist 的宽度 需要让他关闭时无影响。
