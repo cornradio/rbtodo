@@ -10,7 +10,8 @@ import {
     getAllDatesWithTodos,
     searchTodos,
     getStatsForDates,
-    getWeeklyData
+    getWeeklyData,
+    deleteTodo
 } from './data-manager.js';
 
 const app = express();
@@ -106,6 +107,16 @@ app.get('/api/export', async (req, res) => {
     try {
         const data = await getWeeklyData(date);
         res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/todos/delete', async (req, res) => {
+    const { date, id } = req.body;
+    try {
+        await deleteTodo(date, id);
+        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

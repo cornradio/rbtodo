@@ -96,3 +96,21 @@
     font-size: 0.8rem;
     color: var(--text-secondary);
 }
+
+.icon-btn {
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+}
+
+.icon-btn:hover {
+    color: var(--text-color);
+    transform: scale(1.1);
+}
+
+.delete-btn:hover {
+    color: #ff3b30 !important;
+}

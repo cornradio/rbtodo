@@ -141,3 +141,10 @@ export async function getStatsForDates(dates) {
 export async function getWeeklyData(date) {
     return await readWeeklyData(date);
 }
+
+export async function deleteTodo(date, id) {
+    const data = await readWeeklyData(date);
+    if (!data[date]) return;
+    data[date].todos = data[date].todos.filter(t => t.id !== id);
+    await writeWeeklyData(date, data);
+}

@@ -87,6 +87,13 @@ function setupEventListeners() {
     // Fullscreen
     fullscreenBtn.addEventListener('click', toggleFullscreen);
 
+    // Delete
+    document.getElementById('delete-todo').addEventListener('click', () => {
+        if (confirm('Permanently delete this todo?')) {
+            deleteCurrentTodo();
+        }
+    });
+
     // Export
     exportWeekBtn.addEventListener('click', handleExport);
     closeExportBtn.addEventListener('click', () => exportModal.classList.add('hidden'));
@@ -117,6 +124,16 @@ function setupKeyboardShortcuts() {
             e.preventDefault();
             searchInput.focus();
             handleSearch();
+        }
+
+        // Delete key
+        if (e.key === 'Delete' && state.selectedTodo) {
+            if (document.activeElement.tagName !== 'INPUT' && !document.activeElement.classList.contains('content-editor')) {
+                e.preventDefault();
+                if (e.shiftKey || confirm('Permanently delete this todo?')) {
+                    deleteCurrentTodo();
+                }
+            }
         }
     });
 }
@@ -480,6 +497,52 @@ async function toggleTodoComplete(todo) {
     todo.completed = !todo.completed;
     await saveTodoData(todo);
     loadTodos();
+}
+
+async function deleteCurrentTodo() {
+    if (!state.selectedTodo) return;
+
+    const todoId = state.selectedTodo.id;
+    const date = state.selectedTodo.date || state.selectedDate;
+
+    // Find index in current list to decide next selection
+    const currentIndex = state.todos.findIndex(t => t.id === todoId);
+    let nextTodo = null;
+    if (state.todos.length > 1) {
+        if (currentIndex < state.todos.length - 1) {
+            nextTodo = state.todos[currentIndex + 1];
+        } else {
+            nextTodo = state.todos[currentIndex - 1];
+        }
+    }
+
+    try {
+        await fetch('/api/todos/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date, id: todoId })
+        });
+
+        if (nextTodo) {
+            // If next todo is on the same date, we can just reload and open
+            // If it's a search result or something else, it might be different, 
+            // but here state.todos is for the current selectedDate.
+            await loadTodos();
+            openTodo(nextTodo);
+        } else {
+            editorPane.classList.add('hidden-right');
+            resizer.classList.add('hidden');
+            state.selectedTodo = null;
+            await loadTodos();
+        }
+
+        await fetchHighlightedDates();
+        await fetchTimelineStats();
+        renderTimeline();
+        renderCalendar();
+    } catch (e) {
+        console.error(e);
+    }
 }
 
 function autoSave() {
