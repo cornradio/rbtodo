@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RB Todo - Minimalist Productivity</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+</head>
+
+<body class="light-mode">
+    <div class="app-container" id="app">
+        <!-- Sidebar: Timeline & Calendar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="search-container">
+                    <input type="text" id="search-input" placeholder="Search todos...">
+                    <span class="search-icon">🔍</span>
+                </div>
+                <button id="theme-toggle" class="icon-btn">🌓</button>
+            </div>
+
+            <div class="sidebar-section-title">TIMELINE</div>
+            <div id="timeline" class="timeline-container">
+                <!-- Timeline items will be injected here -->
+            </div>
+
+            <div class="sidebar-section-title">CALENDAR</div>
+            <div id="calendar" class="calendar-container">
+                <!-- Calendar will be injected here -->
+            </div>
+        </aside>
+
+        <!-- Main Content: Todo List -->
+        <main class="todo-list-section" id="todo-list-section">
+            <section class="section-group">
+                <header class="section-header">
+                    <h2>OLD TODOS (UNFINISHED)</h2>
+                </header>
+                <div id="old-todos-list" class="todo-items-container">
+                    <!-- Old todos will be injected here -->
+                </div>
+            </section>
+
+            <section class="section-group">
+                <header class="section-header">
+                    <h2 id="current-date-title">TODAY'S TODOS</h2>
+                    <button id="add-todo-btn" class="add-btn">+ New Todo</button>
+                </header>
+                <div id="today-todos-list" class="todo-items-container">
+                    <!-- Today's todos will be injected here -->
+                </div>
+            </section>
+        </main>
+
+        <!-- Resize Handle -->
+        <div class="resizer" id="resizer"></div>
+
+        <!-- Right Pane: Detail & Editor -->
+        <section class="editor-section" id="editor-section">
+            <div id="editor-placeholder" class="editor-placeholder">
+                <p>Select a todo or create a new one to start editing.</p>
+            </div>
+            <div id="editor-container" class="editor-container hidden">
+                <div class="editor-header">
+                    <input type="text" id="todo-title-input" placeholder="Todo Title..." class="title-input">
+                    <div class="editor-actions">
+                        <label for="image-upload" class="icon-btn upload-btn">🖼️
+                            <input type="file" id="image-upload" accept="image/*" style="display: none;">
+                        </label>
+                        <button id="close-editor" class="icon-btn">✕</button>
+                    </div>
+                </div>
+                <div id="todo-content-editor" contenteditable="true" class="content-editor"
+                    placeholder="Start typing content here..."></div>
+                <div class="editor-footer">
+                    <span id="save-status">Saved</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Search Results Overlay -->
+        <div id="search-overlay" class="search-overlay hidden">
+            <div class="search-results-window">
+                <div class="search-results-header">
+                    <h3>Search Results</h3>
+                    <button id="close-search" class="icon-btn">✕</button>
+                </div>
+                <div id="search-results-list" class="search-results-list">
+                    <!-- Results will be injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
