@@ -41,10 +41,16 @@ const exportWeekBtn = document.getElementById('export-week-btn');
 const toggleSidebarBtn = document.getElementById('toggle-sidebar-persistent');
 const fullscreenBtn = document.getElementById('fullscreen-editor');
 
+// --- Mobile Elements ---
+const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+const mobileSearchBtn = document.getElementById('mobile-search-btn');
+const drawerBackdrop = document.getElementById('drawer-backdrop');
+
 // --- Initialization ---
 async function init() {
     setupEventListeners();
     setupKeyboardShortcuts();
+    registerServiceWorker();
     await fetchHighlightedDates();
     await fetchTimelineStats();
     renderTimeline();
@@ -52,6 +58,18 @@ async function init() {
     await loadTodos();
     checkPrefersColorScheme();
     initResizer();
+}
+
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').then(reg => {
+                console.log('SW registered:', reg);
+            }).catch(err => {
+                console.log('SW registration failed:', err);
+            });
+        });
+    }
 }
 
 function setupEventListeners() {
@@ -97,6 +115,11 @@ function setupEventListeners() {
         copyExportBtn.textContent = 'Copied!';
         setTimeout(() => copyExportBtn.textContent = 'Copy Text', 2000);
     });
+
+    // Mobile Event Listeners
+    mobileMenuBtn?.addEventListener('click', toggleMobileSidebar);
+    mobileSearchBtn?.addEventListener('click', () => searchInput.focus());
+    drawerBackdrop?.addEventListener('click', closeAllDrawers);
 }
 
 function setupKeyboardShortcuts() {
@@ -146,6 +169,7 @@ function setupKeyboardShortcuts() {
 function closeEditor() {
     editorPane.classList.add('hidden-right');
     editorPane.classList.add('hidden'); // Ensure no layout impact
+    editorPane.classList.remove('mobile-open');
     resizer.classList.add('hidden');
     state.selectedTodo = null;
     if (state.isFullscreen) {
@@ -153,7 +177,26 @@ function closeEditor() {
         editorPane.classList.remove('fullscreen');
         fullscreenBtn.textContent = '⛶';
     }
+    updateDrawerBackdrop();
     renderTodoLists();
+}
+
+function toggleMobileSidebar() {
+    sidebar.classList.toggle('mobile-open');
+    updateDrawerBackdrop();
+}
+
+function closeAllDrawers() {
+    sidebar.classList.remove('mobile-open');
+    closeEditor();
+}
+
+function updateDrawerBackdrop() {
+    if (sidebar.classList.contains('mobile-open') || editorPane.classList.contains('mobile-open')) {
+        drawerBackdrop.classList.remove('hidden');
+    } else {
+        drawerBackdrop.classList.add('hidden');
+    }
 }
 
 // --- Data Fetching ---
@@ -532,6 +575,7 @@ function openTodo(todo) {
     state.selectedTodo = todo;
     editorPane.classList.remove('hidden-right');
     editorPane.classList.remove('hidden'); // Show resizer
+    editorPane.classList.add('mobile-open');
     resizer.classList.remove('hidden');
     editorSection.classList.remove('hidden');
     editorPlaceholder.classList.add('hidden');
@@ -539,6 +583,7 @@ function openTodo(todo) {
     titleInput.value = todo.title || '';
     contentEditor.innerHTML = todo.content || '';
 
+    updateDrawerBackdrop();
     renderTodoLists();
 }
 

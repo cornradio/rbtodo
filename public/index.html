@@ -17,10 +17,24 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@300;400;500;600&display=swap"
         rel="stylesheet">
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="RB Todo">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/4481/4481307.png">
 </head>
 
 <body class="light-mode">
     <div class="app-container" id="app">
+        <!-- Mobile Header (Visible only on mobile) -->
+        <header class="mobile-top-bar" id="mobile-top-bar">
+            <button id="mobile-menu-btn" class="icon-btn">☰</button>
+            <div class="mobile-app-title">RB Todo</div>
+            <button id="mobile-search-btn" class="icon-btn">🔍</button>
+        </header>
+
         <!-- Sidebar: Timeline & Calendar -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-toggle-persistent" id="toggle-sidebar-persistent" title="Toggle Sidebar (Ctrl+B)">
@@ -134,6 +148,8 @@
             </div>
         </div>
     </div>
+
+    <div id="drawer-backdrop" class="drawer-backdrop hidden"></div>
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>

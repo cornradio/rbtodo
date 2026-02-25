@@ -93,3 +93,23 @@
     text-decoration: line-through;
     opacity: 0.6;
 }
+
+@media (max-width: 768px) {
+    .todo-list-section {
+        padding: 20px;
+        overflow-y: auto;
+    }
+
+    .todo-item {
+        padding: 12px;
+        margin-bottom: 8px;
+    }
+
+    .todo-title {
+        font-size: 0.95rem;
+    }
+
+    .section-header h2 {
+        font-size: 0.8rem;
+    }
+}

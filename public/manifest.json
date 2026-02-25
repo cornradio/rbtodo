@@ -1,0 +1,16 @@
+{
+    "name": "RB Todo",
+    "short_name": "RB Todo",
+    "description": "Minimalist Productivity Todo App",
+    "start_url": "/index.html",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#007aff",
+    "icons": [
+        {
+            "src": "https://cdn-icons-png.flaticon.com/512/4481/4481307.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
