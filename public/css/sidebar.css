@@ -6,14 +6,14 @@
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     /* Anchor for toggle */
     z-index: 100;
 }
 
 .sidebar.collapsed {
-    transform: translateX(-100%);
+    margin-left: -280px;
 }
 
 /* Sticky Sidebar Toggle - Now a child of sidebar but appears outside */
@@ -164,12 +164,19 @@
     background: var(--sidebar-bg);
 }
 
+.calendar-grid-labels,
 .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 4px;
     font-size: 0.75rem;
     text-align: center;
+}
+
+.calendar-grid-labels {
+    font-weight: bold;
+    margin-bottom: 4px;
+    opacity: 0.5;
 }
 
 .cal-day {

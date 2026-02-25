@@ -58,9 +58,10 @@ function setupEventListeners() {
     document.getElementById('add-todo-btn').addEventListener('click', createNewTodo);
     document.getElementById('close-editor').addEventListener('click', () => {
         editorPane.classList.add('hidden-right');
+        resizer.classList.add('hidden'); // Hide resizer too
         state.selectedTodo = null;
         if (state.isFullscreen) toggleFullscreen();
-        renderTodoLists(); // Refresh highlight
+        renderTodoLists();
     });
 
     titleInput.addEventListener('input', debounce(autoSave, 1000));
@@ -465,7 +466,8 @@ function createNewTodo() {
 function openTodo(todo) {
     state.selectedTodo = todo;
     editorPane.classList.remove('hidden-right');
-    editorSection.classList.remove('hidden'); // Ensure content is visible within pane
+    resizer.classList.remove('hidden'); // Show resizer
+    editorSection.classList.remove('hidden');
     editorPlaceholder.classList.add('hidden');
 
     titleInput.value = todo.title || '';
