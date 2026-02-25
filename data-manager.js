@@ -128,3 +128,7 @@ export async function getStatsForDates(dates) {
     }
     return stats;
 }
+
+export async function getWeeklyData(date) {
+    return await readWeeklyData(date);
+}

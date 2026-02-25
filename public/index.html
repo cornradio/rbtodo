@@ -16,8 +16,9 @@
 <body class="light-mode">
     <div class="app-container" id="app">
         <!-- Sidebar: Timeline & Calendar -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
+                <button id="collapse-sidebar" class="icon-btn" title="Toggle Sidebar">≡</button>
                 <div class="search-container">
                     <input type="text" id="search-input" placeholder="Search todos...">
                     <span class="search-icon">🔍</span>
@@ -25,14 +26,21 @@
                 <button id="theme-toggle" class="icon-btn">🌓</button>
             </div>
 
-            <div class="sidebar-section-title">TIMELINE</div>
-            <div id="timeline" class="timeline-container">
-                <!-- Timeline items will be injected here -->
+            <div class="sidebar-section">
+                <div class="sidebar-section-header">
+                    <div class="sidebar-section-title">TIMELINE</div>
+                    <button id="export-week-btn" class="export-btn">Export</button>
+                </div>
+                <div id="timeline" class="timeline-container">
+                    <!-- Timeline items will be injected here -->
+                </div>
             </div>
 
-            <div class="sidebar-section-title">CALENDAR</div>
-            <div id="calendar" class="calendar-container">
-                <!-- Calendar will be injected here -->
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">CALENDAR</div>
+                <div id="calendar" class="calendar-container">
+                    <!-- Calendar will be injected here -->
+                </div>
             </div>
         </aside>
 
@@ -70,10 +78,11 @@
                 <div class="editor-header">
                     <input type="text" id="todo-title-input" placeholder="Todo Title..." class="title-input">
                     <div class="editor-actions">
-                        <label for="image-upload" class="icon-btn upload-btn">🖼️
+                        <button id="fullscreen-editor" class="icon-btn" title="Full Screen">⛶</button>
+                        <label for="image-upload" class="icon-btn upload-btn" title="Upload Image">🖼️
                             <input type="file" id="image-upload" accept="image/*" style="display: none;">
                         </label>
-                        <button id="close-editor" class="icon-btn">✕</button>
+                        <button id="close-editor" class="icon-btn" title="Close">✕</button>
                     </div>
                 </div>
                 <div id="todo-content-editor" contenteditable="true" class="content-editor"
@@ -93,6 +102,22 @@
                 </div>
                 <div id="search-results-list" class="search-results-list">
                     <!-- Results will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Export Modal -->
+        <div id="export-modal" class="search-overlay hidden">
+            <div class="search-results-window">
+                <div class="search-results-header">
+                    <h3>Weekly Export</h3>
+                    <div class="header-btns">
+                        <button id="copy-export" class="add-btn">Copy Text</button>
+                        <button id="close-export" class="icon-btn">✕</button>
+                    </div>
+                </div>
+                <div class="export-content">
+                    <textarea id="export-textarea" readonly></textarea>
                 </div>
             </div>
         </div>

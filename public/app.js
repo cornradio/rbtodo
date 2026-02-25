@@ -5,7 +5,9 @@ const state = {
     oldTodos: [],
     highlightedDates: [],
     isDarkMode: false,
-    timelineStats: {}
+    timelineStats: {},
+    isFullscreen: false,
+    isSidebarCollapsed: false
 };
 
 // --- DOM Elements ---
@@ -22,11 +24,21 @@ const saveStatus = document.getElementById('save-status');
 const themeToggle = document.getElementById('theme-toggle');
 const resizer = document.getElementById('resizer');
 const editorPane = document.getElementById('editor-section');
+const sidebar = document.getElementById('sidebar');
 const app = document.getElementById('app');
 const searchInput = document.getElementById('search-input');
 const searchOverlay = document.getElementById('search-overlay');
 const searchResultsList = document.getElementById('search-results-list');
 const closeSearchBtn = document.getElementById('close-search');
+
+const exportModal = document.getElementById('export-modal');
+const exportTextarea = document.getElementById('export-textarea');
+const closeExportBtn = document.getElementById('close-export');
+const copyExportBtn = document.getElementById('copy-export');
+const exportWeekBtn = document.getElementById('export-week-btn');
+
+const collapseSidebarBtn = document.getElementById('collapse-sidebar');
+const fullscreenBtn = document.getElementById('fullscreen-editor');
 
 // --- Initialization ---
 async function init() {
@@ -46,6 +58,7 @@ function setupEventListeners() {
         editorSection.classList.add('hidden');
         editorPlaceholder.classList.remove('hidden');
         state.selectedTodo = null;
+        if (state.isFullscreen) toggleFullscreen();
     });
 
     titleInput.addEventListener('input', debounce(autoSave, 1000));
@@ -64,6 +77,22 @@ function setupEventListeners() {
     searchOverlay.addEventListener('click', (e) => {
         if (e.target === searchOverlay) searchOverlay.classList.add('hidden');
     });
+
+    // Sidebar Collapse
+    collapseSidebarBtn.addEventListener('click', toggleSidebar);
+
+    // Fullscreen
+    fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+    // Export
+    exportWeekBtn.addEventListener('click', handleExport);
+    closeExportBtn.addEventListener('click', () => exportModal.classList.add('hidden'));
+    copyExportBtn.addEventListener('click', () => {
+        exportTextarea.select();
+        document.execCommand('copy');
+        copyExportBtn.textContent = 'Copied!';
+        setTimeout(() => copyExportBtn.textContent = 'Copy Text', 2000);
+    });
 }
 
 // --- Data Fetching ---
@@ -75,7 +104,6 @@ async function fetchHighlightedDates() {
 }
 
 async function fetchTimelineStats() {
-    // Get stats for the fixed 7 days in timeline
     const startOfWeek = dayjs().startOf('isoWeek');
     const dates = [];
     for (let i = 0; i < 7; i++) {
@@ -94,12 +122,10 @@ async function fetchTimelineStats() {
 
 async function loadTodos() {
     try {
-        // Load today's todos
         const res = await fetch(`/api/todos?date=${state.selectedDate}`);
         const data = await res.json();
         state.todos = data.todos || [];
 
-        // Load old unfinished todos
         const oldRes = await fetch(`/api/old-todos?date=${state.selectedDate}`);
         state.oldTodos = await oldRes.json();
 
@@ -133,7 +159,6 @@ async function saveTodoData(todo) {
 // --- Rendering Logic ---
 function renderTimeline() {
     timelineEl.innerHTML = '';
-    // Fixed week: Monday to Sunday of the current week
     const startOfWeek = dayjs().startOf('isoWeek');
 
     for (let i = 0; i < 7; i++) {
@@ -177,7 +202,6 @@ function renderCalendar() {
     const grid = document.createElement('div');
     grid.className = 'calendar-grid';
 
-    // Empty cells
     for (let i = 0; i < startDay; i++) {
         grid.appendChild(document.createElement('div'));
     }
@@ -221,10 +245,24 @@ function renderList(todos, container, isOld) {
         const title = document.createElement('div');
         title.className = 'todo-title';
         title.textContent = todo.title || '(No Title)';
-        title.contentEditable = true;
 
-        // Prevent click events on title from triggering item click if we are editing
-        title.onclick = (e) => e.stopPropagation();
+        // Double click to edit title
+        item.ondblclick = (e) => {
+            e.stopPropagation();
+            title.contentEditable = true;
+            title.focus();
+            // Place cursor at end
+            const range = document.createRange();
+            const sel = window.getSelection();
+            range.selectNodeContents(title);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        };
+
+        title.onblur = () => {
+            title.contentEditable = false;
+        };
 
         title.oninput = (e) => {
             todo.title = e.target.textContent;
@@ -247,6 +285,51 @@ function selectDate(date) {
     renderTimeline();
     renderCalendar();
     loadTodos();
+}
+
+function toggleSidebar() {
+    state.isSidebarCollapsed = !state.isSidebarCollapsed;
+    sidebar.classList.toggle('collapsed');
+}
+
+function toggleFullscreen() {
+    state.isFullscreen = !state.isFullscreen;
+    editorPane.classList.toggle('fullscreen');
+    fullscreenBtn.textContent = state.isFullscreen ? '❐' : '⛶';
+}
+
+async function handleExport() {
+    try {
+        const res = await fetch(`/api/export?date=${state.selectedDate}`);
+        const data = await res.json();
+
+        let text = `# Weekly Summary (${dayjs(state.selectedDate).startOf('isoWeek').format('YYYY-MM-DD')} to ${dayjs(state.selectedDate).endOf('isoWeek').format('YYYY-MM-DD')})\n\n`;
+
+        const sortedDates = Object.keys(data).sort();
+        sortedDates.forEach(date => {
+            const dayTodos = data[date].todos;
+            if (dayTodos.length > 0) {
+                text += `## ${date} (${dayjs(date).format('ddd')})\n`;
+                dayTodos.forEach(t => {
+                    const status = t.completed ? '[x]' : '[ ]';
+                    text += `${status} ${t.title || 'Untitled'}\n`;
+                    if (t.content) {
+                        const cleanContent = t.content.replace(/<[^>]*>/g, '').trim();
+                        if (cleanContent) {
+                            text += `   > ${cleanContent.substring(0, 200)}${cleanContent.length > 200 ? '...' : ''}\n`;
+                        }
+                    }
+                });
+                text += '\n';
+            }
+        });
+
+        exportTextarea.value = text;
+        exportModal.classList.remove('hidden');
+    } catch (e) {
+        console.error(e);
+        alert('Export failed.');
+    }
 }
 
 function updateDateTitle() {
@@ -280,7 +363,6 @@ function openTodo(todo) {
     titleInput.value = todo.title || '';
     contentEditor.innerHTML = todo.content || '';
 
-    // Highlight in list
     renderTodoLists();
 }
 
@@ -297,7 +379,6 @@ function autoSave() {
     state.selectedTodo.content = contentEditor.innerHTML;
 
     saveTodoData(state.selectedTodo).then(() => {
-        // Update title in list
         const activeItemTitle = document.querySelector(`.todo-item.active .todo-title`);
         if (activeItemTitle) activeItemTitle.textContent = state.selectedTodo.title || '(No Title)';
     });
@@ -352,12 +433,12 @@ async function handlePaste(e) {
     let imageFound = false;
     for (let item of items) {
         if (item.type.indexOf('image') !== -1) {
-            e.preventDefault(); // Stop default paste if an image is found
+            e.preventDefault();
             const file = item.getAsFile();
             if (file) {
                 await uploadAndInsertImage(file);
                 imageFound = true;
-                break; // Only process one image
+                break;
             }
         }
     }
@@ -404,7 +485,7 @@ function initResizer() {
     document.addEventListener('mousemove', (e) => {
         if (!isResizing) return;
         const width = window.innerWidth - e.clientX;
-        if (width > 300 && width < window.innerWidth * 0.8) {
+        if (width > 300 && width < window.innerWidth * 0.95) {
             editorPane.style.width = `${width}px`;
         }
     });

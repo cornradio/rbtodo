@@ -8,7 +8,8 @@ import {
     getOldUnfinishedTodos,
     getAllDatesWithTodos,
     searchTodos,
-    getStatsForDates
+    getStatsForDates,
+    getWeeklyData
 } from './data-manager.js';
 
 const app = express();
@@ -84,6 +85,16 @@ app.post('/api/stats', async (req, res) => {
     try {
         const stats = await getStatsForDates(dates);
         res.json(stats);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/export', async (req, res) => {
+    const { date } = req.query;
+    try {
+        const data = await getWeeklyData(date);
+        res.json(data);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
