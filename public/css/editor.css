@@ -38,6 +38,20 @@
     height: 100%;
     padding: 30px;
     overflow: hidden;
+    position: relative;
+}
+
+.close-btn-top {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    color: #ff3b30 !important;
+    font-size: 1.5rem !important;
+    z-index: 10;
+}
+
+.close-btn-top:hover {
+    transform: scale(1.2) rotate(90deg) !important;
 }
 
 .editor-placeholder {
@@ -87,6 +101,46 @@
     align-items: center;
 }
 
+.footer-right-group {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.reload-btn {
+    font-size: 1.2rem !important;
+    opacity: 0.5;
+}
+
+.reload-btn:hover {
+    opacity: 1;
+    color: var(--accent-color) !important;
+}
+
+.reload-btn.spinning {
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.fullscreen-btn-large {
+    font-size: 1.6rem !important;
+    color: var(--text-secondary);
+}
+
+.fullscreen-btn-large:hover {
+    color: var(--accent-color) !important;
+    transform: scale(1.1);
+}
+
 .editor-actions-bottom {
     display: flex;
     gap: 16px;
@@ -95,6 +149,17 @@
 .save-status-box {
     font-size: 0.8rem;
     color: var(--text-secondary);
+    background: var(--todo-item-hover);
+    padding: 4px 10px;
+    border-radius: 6px;
+    min-width: 60px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.save-status-box.saving {
+    color: var(--accent-color);
+    background: rgba(0, 122, 255, 0.1);
 }
 
 .icon-btn {

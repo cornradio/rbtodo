@@ -41,9 +41,10 @@
                 <div class="toggle-anchor"></div>
             </div>
             <div class="sidebar-header">
-                <div class="search-container">
-                    <input type="text" id="search-input" placeholder="Search (Ctrl+Shift+P)...">
-                </div>
+                <button id="open-search-btn" class="sidebar-search-trigger" title="Search (Ctrl+Shift+P)">
+                    <span>Search...</span>
+                    <span class="shortcut-hint">⌘P</span>
+                </button>
                 <button id="theme-toggle" class="icon-btn">🌓</button>
             </div>
 
@@ -98,6 +99,7 @@
                 <p>Select a todo or create a new one to start editing.</p>
             </div>
             <div id="editor-container" class="editor-container hidden">
+                <button id="close-editor-top" class="icon-btn close-btn-top" title="Close">✕</button>
                 <input type="text" id="todo-title-input" placeholder="Todo Title..." class="title-input">
 
                 <div id="todo-content-editor" contenteditable="true" class="content-editor"
@@ -105,15 +107,19 @@
 
                 <div class="editor-footer-container">
                     <div class="editor-actions-bottom">
-                        <button id="fullscreen-editor" class="icon-btn" title="Full Screen (Ctrl+Shift+F)">⛶</button>
                         <label for="image-upload" class="icon-btn upload-btn" title="Upload Image">🖼️
                             <input type="file" id="image-upload" accept="image/*" style="display: none;">
                         </label>
                         <button id="delete-todo" class="icon-btn delete-btn" title="Delete (Permanently)">🗑️</button>
-                        <button id="close-editor" class="icon-btn" title="Close">✕</button>
                     </div>
-                    <div class="save-status-box">
-                        <span id="save-status">Saved</span>
+                    <div class="footer-right-group">
+                        <button id="manual-reload" class="icon-btn reload-btn"
+                            title="Manual Reload from Server">↻</button>
+                        <div class="save-status-box">
+                            <span id="save-status">Saved</span>
+                        </div>
+                        <button id="fullscreen-editor" class="icon-btn fullscreen-btn-large"
+                            title="Full Screen (Ctrl+Shift+F)">⛶</button>
                     </div>
                 </div>
             </div>
@@ -122,8 +128,12 @@
         <!-- Search Results Overlay -->
         <div id="search-overlay" class="search-overlay hidden">
             <div class="search-results-window">
-                <div class="search-results-header">
-                    <h3>Search Results</h3>
+                <div class="search-results-header modal-search-box">
+                    <div class="search-input-wrapper">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="search-input" placeholder="Search your productivity..."
+                            autocomplete="off">
+                    </div>
                     <button id="close-search" class="icon-btn">✕</button>
                 </div>
                 <div id="search-results-list" class="search-results-list">

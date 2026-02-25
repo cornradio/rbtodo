@@ -98,3 +98,14 @@ createNewTodo	@	app.js:472
 
 - [x]  在notes頁面按下esc就可以相当于 x 键， 可以关闭notes
 - [x]  有时候感觉notes在关闭状态下 还会影响 todolist 的宽度 需要让他关闭时无影响。
+- [ ]  
+
+## v1.4
+支持手机端（默认主页只显示todo 左侧兰和notes都是可以弹出的悬浮窗）手机上还看不见notes里面的所有底部按钮，需要调整手机尤其是ios的ui，并且可以安装成app
+
+搜索的话不要使用左上角窗口的 而是弹出窗口专门用来搜索。
+
+把notes的 x 挪到右上角 并且改成红色。
+fullscreen 放到右下。在saved 右边。 
+saved状态显示更多信息
+增加reload按钮，允许手动从服务器load最新信息。

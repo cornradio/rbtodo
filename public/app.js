@@ -45,6 +45,8 @@ const fullscreenBtn = document.getElementById('fullscreen-editor');
 const mobileMenuBtn = document.getElementById('mobile-menu-btn');
 const mobileSearchBtn = document.getElementById('mobile-search-btn');
 const drawerBackdrop = document.getElementById('drawer-backdrop');
+const openSearchBtn = document.getElementById('open-search-btn');
+const manualReloadBtn = document.getElementById('manual-reload');
 
 // --- Initialization ---
 async function init() {
@@ -74,7 +76,7 @@ function registerServiceWorker() {
 
 function setupEventListeners() {
     document.getElementById('add-todo-btn').addEventListener('click', createNewTodo);
-    document.getElementById('close-editor').addEventListener('click', closeEditor);
+    document.getElementById('close-editor-top').addEventListener('click', closeEditor);
 
     titleInput.addEventListener('input', debounce(autoSave, 1000));
     contentEditor.addEventListener('input', debounce(autoSave, 1000));
@@ -87,6 +89,7 @@ function setupEventListeners() {
     themeToggle.addEventListener('click', toggleTheme);
 
     // Search
+    openSearchBtn.addEventListener('click', openSearch);
     searchInput.addEventListener('input', debounce(handleSearch, 500));
     closeSearchBtn.addEventListener('click', () => searchOverlay.classList.add('hidden'));
     searchOverlay.addEventListener('click', (e) => {
@@ -118,8 +121,10 @@ function setupEventListeners() {
 
     // Mobile Event Listeners
     mobileMenuBtn?.addEventListener('click', toggleMobileSidebar);
-    mobileSearchBtn?.addEventListener('click', () => searchInput.focus());
+    mobileSearchBtn?.addEventListener('click', openSearch);
     drawerBackdrop?.addEventListener('click', closeAllDrawers);
+
+    manualReloadBtn?.addEventListener('click', manualReloadTodo);
 }
 
 function setupKeyboardShortcuts() {
@@ -139,8 +144,7 @@ function setupKeyboardShortcuts() {
         // Ctrl + Shift + P: Open Search
         if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') {
             e.preventDefault();
-            searchInput.focus();
-            handleSearch();
+            openSearch();
         }
 
         // Delete key
@@ -239,7 +243,11 @@ async function loadTodos() {
 }
 
 async function saveTodoData(todo) {
+    const statusBox = saveStatus.parentElement;
     saveStatus.textContent = 'Saving...';
+    statusBox.classList.add('saving');
+
+    const startTime = Date.now();
     try {
         await fetch('/api/todos', {
             method: 'POST',
@@ -249,13 +257,22 @@ async function saveTodoData(todo) {
                 todo
             })
         });
+
+        // Ensure "Saving..." is visible for at least 600ms so user knows it happened
+        const elapsed = Date.now() - startTime;
+        if (elapsed < 600) {
+            await new Promise(r => setTimeout(r, 600 - elapsed));
+        }
+
         saveStatus.textContent = 'Saved';
+        statusBox.classList.remove('saving');
         await fetchHighlightedDates();
         await fetchTimelineStats();
         renderTimeline();
         renderCalendar();
     } catch (e) {
         saveStatus.textContent = 'Error';
+        statusBox.classList.remove('saving');
         console.error(e);
     }
 }
@@ -648,10 +665,41 @@ function autoSave() {
     });
 }
 
+async function manualReloadTodo() {
+    if (!state.selectedTodo) return;
+
+    manualReloadBtn.classList.add('spinning');
+    try {
+        const res = await fetch(`/api/todos?date=${state.selectedDate}`);
+        const data = await res.json();
+        const updatedTodo = (data.todos || []).find(t => t.id === state.selectedTodo.id);
+
+        if (updatedTodo) {
+            state.selectedTodo = updatedTodo;
+            titleInput.value = updatedTodo.title || '';
+            contentEditor.innerHTML = updatedTodo.content || '';
+            saveStatus.textContent = 'Reloaded';
+            setTimeout(() => saveStatus.textContent = 'Saved', 2000);
+        }
+    } catch (e) {
+        console.error(e);
+        saveStatus.textContent = 'Reload error';
+    } finally {
+        setTimeout(() => manualReloadBtn.classList.remove('spinning'), 600);
+    }
+}
+
+function openSearch() {
+    searchOverlay.classList.remove('hidden');
+    searchInput.value = '';
+    searchResultsList.innerHTML = '<p style="text-align:center; padding:40px; opacity:0.3;">Type to start searching...</p>';
+    setTimeout(() => searchInput.focus(), 100);
+}
+
 async function handleSearch() {
     const q = searchInput.value.trim();
     if (!q) {
-        searchOverlay.classList.add('hidden');
+        searchResultsList.innerHTML = '<p style="text-align:center; padding:40px; opacity:0.3;">Type to start searching...</p>';
         return;
     }
 

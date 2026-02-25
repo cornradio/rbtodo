@@ -158,21 +158,8 @@ body.resizing {
 }
 
 .drawer-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(2px);
-    z-index: 900;
-    opacity: 1;
-    transition: opacity 0.3s ease;
-}
-
-.drawer-backdrop.hidden {
-    opacity: 0;
-    pointer-events: none;
+    display: none;
+    /* Hidden by default on desktop */
 }
 
 @media (max-width: 768px) {
@@ -188,5 +175,24 @@ body.resizing {
 
     .resizer {
         display: none !important;
+    }
+
+    .drawer-backdrop {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(2px);
+        z-index: 900;
+        opacity: 1;
+        transition: opacity 0.3s ease;
+    }
+
+    .drawer-backdrop.hidden {
+        opacity: 0;
+        pointer-events: none;
     }
 }
