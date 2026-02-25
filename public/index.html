@@ -21,16 +21,14 @@
 
 <body class="light-mode">
     <div class="app-container" id="app">
-        <!-- Sidebar Toggle (Persistent拉手) -->
-        <button id="toggle-sidebar-persistent" class="sidebar-toggle-persistent"
-            title="Toggle Sidebar (Ctrl+B)">☰</button>
-
         <!-- Sidebar: Timeline & Calendar -->
         <aside class="sidebar" id="sidebar">
+            <div class="sidebar-toggle-persistent" id="toggle-sidebar-persistent" title="Toggle Sidebar (Ctrl+B)">
+                <div class="toggle-anchor"></div>
+            </div>
             <div class="sidebar-header">
                 <div class="search-container">
-                    <input type="text" id="search-input" placeholder="Search todos...">
-                    <span class="search-icon">🔍</span>
+                    <input type="text" id="search-input" placeholder="Search (Ctrl+Shift+P)...">
                 </div>
                 <button id="theme-toggle" class="icon-btn">🌓</button>
             </div>
@@ -81,7 +79,7 @@
         <div class="resizer" id="resizer"></div>
 
         <!-- Right Pane: Detail & Editor -->
-        <section class="editor-section" id="editor-section">
+        <section class="editor-section hidden-right" id="editor-section">
             <div id="editor-placeholder" class="editor-placeholder">
                 <p>Select a todo or create a new one to start editing.</p>
             </div>

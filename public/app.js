@@ -7,7 +7,8 @@ const state = {
     isDarkMode: false,
     timelineStats: {},
     isFullscreen: false,
-    isSidebarCollapsed: false
+    isSidebarCollapsed: false,
+    calendarViewDate: dayjs().startOf('month')
 };
 
 // --- DOM Elements ---
@@ -56,10 +57,10 @@ async function init() {
 function setupEventListeners() {
     document.getElementById('add-todo-btn').addEventListener('click', createNewTodo);
     document.getElementById('close-editor').addEventListener('click', () => {
-        editorSection.classList.add('hidden');
-        editorPlaceholder.classList.remove('hidden');
+        editorPane.classList.add('hidden-right');
         state.selectedTodo = null;
         if (state.isFullscreen) toggleFullscreen();
+        renderTodoLists(); // Refresh highlight
     });
 
     titleInput.addEventListener('input', debounce(autoSave, 1000));
@@ -104,11 +105,17 @@ function setupKeyboardShortcuts() {
             toggleSidebar();
         }
         // Ctrl + Shift + F: Toggle Fullscreen
-        if (e.ctrlKey && e.shiftKey && (e.key.toLowerCase() === 'f')) {
+        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'f') {
             e.preventDefault();
             if (!editorSection.classList.contains('hidden')) {
                 toggleFullscreen();
             }
+        }
+        // Ctrl + Shift + P: Open Search
+        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') {
+            e.preventDefault();
+            searchInput.focus();
+            handleSearch();
         }
     });
 }
@@ -217,17 +224,14 @@ function renderTimeline() {
 }
 
 function renderCalendar() {
-    const now = dayjs(state.selectedDate);
-    const startOfMonth = now.startOf('month');
-    const endOfMonth = now.endOf('month');
+    const viewDate = state.calendarViewDate;
+    const startOfMonth = viewDate.startOf('month');
+    const endOfMonth = viewDate.endOf('month');
     const startDay = startOfMonth.day();
-    const daysInMonth = now.daysInMonth();
+    const daysInMonth = viewDate.daysInMonth();
 
     calendarEl.innerHTML = `
-        <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.8rem; font-weight:bold;">
-            <span>${now.format('MMMM YYYY')}</span>
-        </div>
-        <div class="calendar-grid">
+        <div class="calendar-grid-labels">
             <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
         </div>
     `;
@@ -250,7 +254,30 @@ function renderCalendar() {
         grid.appendChild(dayEl);
     }
     calendarEl.appendChild(grid);
+
+    // Month Navigation at Bottom
+    const nav = document.createElement('div');
+    nav.className = 'calendar-header-nav';
+    nav.innerHTML = `
+        <div class="cal-nav-group">
+            <button class="cal-nav-btn" onclick="changeMonth(-1)">❮</button>
+            <span class="cal-month-title">${viewDate.format('MMM YYYY')}</span>
+            <button class="cal-nav-btn" onclick="changeMonth(1)">❯</button>
+        </div>
+        <button class="cal-today-btn" onclick="goToday()">Today</button>
+    `;
+    calendarEl.appendChild(nav);
 }
+
+window.changeMonth = (delta) => {
+    state.calendarViewDate = state.calendarViewDate.add(delta, 'month');
+    renderCalendar();
+};
+
+window.goToday = () => {
+    state.calendarViewDate = dayjs().startOf('month');
+    selectDate(dayjs().format('YYYY-MM-DD'));
+};
 
 function renderTodoLists() {
     renderList(state.oldTodos, oldTodosEl, true);
@@ -437,7 +464,8 @@ function createNewTodo() {
 
 function openTodo(todo) {
     state.selectedTodo = todo;
-    editorSection.classList.remove('hidden');
+    editorPane.classList.remove('hidden-right');
+    editorSection.classList.remove('hidden'); // Ensure content is visible within pane
     editorPlaceholder.classList.add('hidden');
 
     titleInput.value = todo.title || '';

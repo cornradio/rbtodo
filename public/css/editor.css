@@ -8,8 +8,16 @@
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    transition: width 0.3s ease;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s ease;
     overflow: hidden;
+    position: relative;
+}
+
+/* Hide to the right */
+.editor-section.hidden-right {
+    transform: translateX(100%);
+    position: absolute;
+    right: 0;
 }
 
 .editor-section.fullscreen {
@@ -20,6 +28,7 @@
     max-width: 100vw !important;
     height: 100vh !important;
     z-index: 2000;
+    transform: none !important;
 }
 
 .editor-container {

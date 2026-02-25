@@ -71,3 +71,12 @@ nodejs后端 + 纯html前端，无框架。
 2. 左侧菜单收起后无法再次打开 ui需要保留一个拖拽小窗，并且可以使用快捷键ctrl B 控制
 3. todo应该可以拖拽排序。
 4. note页面功能按钮放到note左下角，并且全屏切换快捷键是 ctrl shift f 
+
+
+## v1.2 
+bug修复
+CALENDAR组件可以使用更好的， 他现在不能切换月份。
+CALENDAR 月份放在底部 然后给一个today按钮。
+notes的滚动栏使用更加隐蔽、符合主题的颜色样式
+搜索框不要icon，并且可以使用快捷键 ctrl shift p 调用出搜索菜单，类似vscode那样。
+左侧收起的按钮要有那种和左边栏stick的感觉。
