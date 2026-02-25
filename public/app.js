@@ -76,7 +76,7 @@ async function fetchHighlightedDates() {
 
 async function fetchTimelineStats() {
     // Get stats for the fixed 7 days in timeline
-    const startOfWeek = dayjs().startOf('week');
+    const startOfWeek = dayjs().startOf('isoWeek');
     const dates = [];
     for (let i = 0; i < 7; i++) {
         dates.push(startOfWeek.add(i, 'day').format('YYYY-MM-DD'));
@@ -133,8 +133,8 @@ async function saveTodoData(todo) {
 // --- Rendering Logic ---
 function renderTimeline() {
     timelineEl.innerHTML = '';
-    // Fixed week: Monday to Sunday of the current week (dayjs default week usually starts Sunday)
-    const startOfWeek = dayjs().startOf('week');
+    // Fixed week: Monday to Sunday of the current week
+    const startOfWeek = dayjs().startOf('isoWeek');
 
     for (let i = 0; i < 7; i++) {
         const d = startOfWeek.add(i, 'day');
@@ -231,7 +231,7 @@ function renderList(todos, container, isOld) {
             if (state.selectedTodo?.id === todo.id) {
                 titleInput.value = todo.title;
             }
-            debounce(() => saveTodoData(todo), 1000)();
+            debounce(() => saveTodoData(todo), 2000)();
         };
 
         item.appendChild(checkbox);
@@ -349,14 +349,15 @@ function renderSearchResults(results) {
 // --- Image Handling ---
 async function handlePaste(e) {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    let handled = false;
+    let imageFound = false;
     for (let item of items) {
-        // Only handle the first image found in the clipboard to avoid double paste bug in some browsers
-        if (item.type.indexOf('image') !== -1 && !handled) {
+        if (item.type.indexOf('image') !== -1) {
+            e.preventDefault(); // Stop default paste if an image is found
             const file = item.getAsFile();
             if (file) {
                 await uploadAndInsertImage(file);
-                handled = true;
+                imageFound = true;
+                break; // Only process one image
             }
         }
     }
