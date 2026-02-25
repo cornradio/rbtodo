@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'; // Need to install uuid
 import {
     getTodosForDate,
     saveTodo,
+    updateTodosOrder,
     getOldUnfinishedTodos,
     getAllDatesWithTodos,
     searchTodos,
@@ -45,6 +46,16 @@ app.post('/api/todos', async (req, res) => {
     const { date, todo } = req.body;
     try {
         await saveTodo(date, todo);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/todos/order', async (req, res) => {
+    const { date, todos } = req.body;
+    try {
+        await updateTodosOrder(date, todos);
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });

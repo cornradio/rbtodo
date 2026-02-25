@@ -1,0 +1,107 @@
+:root {
+    --bg-color: #f8f9fa;
+    --sidebar-bg: #ffffff;
+    --text-color: #1a1a1a;
+    --text-secondary: #666666;
+    --accent-color: #007aff;
+    --border-color: #e0e0e0;
+    --todo-item-bg: #ffffff;
+    --todo-item-hover: #f1f3f5;
+    --editor-bg: #ffffff;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    --font-main: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-heading: 'Outfit', sans-serif;
+}
+
+.dark-mode {
+    --bg-color: #121212;
+    --sidebar-bg: #1e1e1e;
+    --text-color: #e0e0e0;
+    --text-secondary: #a0a0a0;
+    --accent-color: #0a84ff;
+    --border-color: #333333;
+    --todo-item-bg: #1e1e1e;
+    --todo-item-hover: #2c2c2c;
+    --editor-bg: #1e1e1e;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-main);
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    height: 100vh;
+    overflow: hidden;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.app-container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    position: relative;
+    overflow: hidden;
+}
+
+.resizer {
+    width: 12px;
+    margin-left: -6px;
+    margin-right: -6px;
+    cursor: col-resize;
+    z-index: 10;
+    flex-shrink: 0;
+}
+
+.resizer:hover,
+.resizing .resizer {
+    background-color: var(--accent-color);
+    width: 4px;
+}
+
+body.resizing {
+    cursor: col-resize;
+    user-select: none;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.icon-btn {
+    background: transparent;
+    border: none;
+    font-size: 1.4rem;
+    cursor: pointer;
+    color: var(--text-color);
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s, color 0.2s;
+}
+
+.icon-btn:hover {
+    opacity: 1;
+    color: var(--accent-color);
+}
+
+.add-btn {
+    padding: 6px 14px;
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.add-btn:hover {
+    opacity: 0.9;
+}

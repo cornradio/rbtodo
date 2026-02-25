@@ -51,6 +51,15 @@ export async function saveTodo(date, todo) {
     await writeWeeklyData(date, data);
 }
 
+export async function updateTodosOrder(date, todos) {
+    const data = await readWeeklyData(date);
+    if (!data[date]) {
+        data[date] = { todos: [] };
+    }
+    data[date].todos = todos;
+    await writeWeeklyData(date, data);
+}
+
 export async function getOldUnfinishedTodos(currentDate) {
     const files = await fs.readdir(DATA_DIR);
     const allOldUnfinished = [];

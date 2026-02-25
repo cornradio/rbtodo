@@ -37,12 +37,13 @@ const closeExportBtn = document.getElementById('close-export');
 const copyExportBtn = document.getElementById('copy-export');
 const exportWeekBtn = document.getElementById('export-week-btn');
 
-const collapseSidebarBtn = document.getElementById('collapse-sidebar');
+const toggleSidebarBtn = document.getElementById('toggle-sidebar-persistent');
 const fullscreenBtn = document.getElementById('fullscreen-editor');
 
 // --- Initialization ---
 async function init() {
     setupEventListeners();
+    setupKeyboardShortcuts();
     await fetchHighlightedDates();
     await fetchTimelineStats();
     renderTimeline();
@@ -79,7 +80,7 @@ function setupEventListeners() {
     });
 
     // Sidebar Collapse
-    collapseSidebarBtn.addEventListener('click', toggleSidebar);
+    toggleSidebarBtn.addEventListener('click', toggleSidebar);
 
     // Fullscreen
     fullscreenBtn.addEventListener('click', toggleFullscreen);
@@ -92,6 +93,23 @@ function setupEventListeners() {
         document.execCommand('copy');
         copyExportBtn.textContent = 'Copied!';
         setTimeout(() => copyExportBtn.textContent = 'Copy Text', 2000);
+    });
+}
+
+function setupKeyboardShortcuts() {
+    window.addEventListener('keydown', (e) => {
+        // Ctrl + B: Toggle Sidebar
+        if (e.ctrlKey && e.key.toLowerCase() === 'b') {
+            e.preventDefault();
+            toggleSidebar();
+        }
+        // Ctrl + Shift + F: Toggle Fullscreen
+        if (e.ctrlKey && e.shiftKey && (e.key.toLowerCase() === 'f')) {
+            e.preventDefault();
+            if (!editorSection.classList.contains('hidden')) {
+                toggleFullscreen();
+            }
+        }
     });
 }
 
@@ -156,6 +174,21 @@ async function saveTodoData(todo) {
     }
 }
 
+async function saveTodosOrder(date, todos) {
+    saveStatus.textContent = 'Saving order...';
+    try {
+        await fetch('/api/todos/order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date, todos })
+        });
+        saveStatus.textContent = 'Saved';
+    } catch (e) {
+        saveStatus.textContent = 'Error';
+        console.error(e);
+    }
+}
+
 // --- Rendering Logic ---
 function renderTimeline() {
     timelineEl.innerHTML = '';
@@ -175,7 +208,7 @@ function renderTimeline() {
             </div>
             <div class="todo-stats">
                 <span class="todo-count">${stats.completed}/${stats.total}</span>
-                <span style="font-size: 0.6rem">TODO</span>
+                <div style="font-size: 0.6rem">TODO</div>
             </div>
         `;
         item.onclick = () => selectDate(dateStr);
@@ -231,9 +264,12 @@ function renderList(todos, container, isOld) {
         return;
     }
 
-    todos.forEach(todo => {
+    todos.forEach((todo, index) => {
         const item = document.createElement('div');
         item.className = `todo-item ${todo.completed ? 'completed' : ''} ${state.selectedTodo?.id === todo.id ? 'active' : ''}`;
+        item.draggable = true;
+        item.dataset.id = todo.id;
+        item.dataset.index = index;
 
         const checkbox = document.createElement('div');
         checkbox.className = `todo-checkbox ${todo.completed ? 'checked' : ''}`;
@@ -246,12 +282,10 @@ function renderList(todos, container, isOld) {
         title.className = 'todo-title';
         title.textContent = todo.title || '(No Title)';
 
-        // Double click to edit title
         item.ondblclick = (e) => {
             e.stopPropagation();
             title.contentEditable = true;
             title.focus();
-            // Place cursor at end
             const range = document.createRange();
             const sel = window.getSelection();
             range.selectNodeContents(title);
@@ -275,8 +309,54 @@ function renderList(todos, container, isOld) {
         item.appendChild(checkbox);
         item.appendChild(title);
         item.onclick = () => openTodo(todo);
+
+        // Drag & Drop
+        item.addEventListener('dragstart', handleDragStart);
+        item.addEventListener('dragover', handleDragOver);
+        item.addEventListener('drop', (e) => handleDrop(e, container, isOld));
+        item.addEventListener('dragend', handleDragEnd);
+
         container.appendChild(item);
     });
+}
+
+// --- Drag & Drop Handlers ---
+let draggedItem = null;
+
+function handleDragStart(e) {
+    draggedItem = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+    draggedItem = null;
+}
+
+function handleDrop(e, container, isOld) {
+    e.preventDefault();
+    if (draggedItem !== this) {
+        const items = Array.from(container.children);
+        const fromIndex = items.indexOf(draggedItem);
+        const toIndex = items.indexOf(this);
+
+        if (fromIndex !== -1 && toIndex !== -1) {
+            const list = isOld ? state.oldTodos : state.todos;
+            const [reorderedItem] = list.splice(fromIndex, 1);
+            list.splice(toIndex, 0, reorderedItem);
+
+            renderTodoLists();
+            if (!isOld) {
+                saveTodosOrder(state.selectedDate, state.todos);
+            }
+        }
+    }
 }
 
 // --- Actions ---

@@ -5,7 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RB Todo - Minimalist Productivity</title>
-    <link rel="stylesheet" href="style.css">
+    <!-- CSS Split for stability -->
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="stylesheet" href="css/todo.css">
+    <link rel="stylesheet" href="css/editor.css">
+    <link rel="stylesheet" href="css/overlay.css">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -15,10 +21,13 @@
 
 <body class="light-mode">
     <div class="app-container" id="app">
+        <!-- Sidebar Toggle (Persistent拉手) -->
+        <button id="toggle-sidebar-persistent" class="sidebar-toggle-persistent"
+            title="Toggle Sidebar (Ctrl+B)">☰</button>
+
         <!-- Sidebar: Timeline & Calendar -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <button id="collapse-sidebar" class="icon-btn" title="Toggle Sidebar">≡</button>
                 <div class="search-container">
                     <input type="text" id="search-input" placeholder="Search todos...">
                     <span class="search-icon">🔍</span>
@@ -26,18 +35,20 @@
                 <button id="theme-toggle" class="icon-btn">🌓</button>
             </div>
 
-            <div class="sidebar-section">
-                <div class="sidebar-section-header">
-                    <div class="sidebar-section-title">TIMELINE</div>
-                    <button id="export-week-btn" class="export-btn">Export</button>
-                </div>
-                <div id="timeline" class="timeline-container">
-                    <!-- Timeline items will be injected here -->
+            <div class="sidebar-content-top">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-header">
+                        <div class="sidebar-section-title">TIMELINE</div>
+                        <button id="export-week-btn" class="export-btn">Export</button>
+                    </div>
+                    <div id="timeline" class="timeline-container">
+                        <!-- Timeline items will be injected here -->
+                    </div>
                 </div>
             </div>
 
-            <div class="sidebar-section">
-                <div class="sidebar-section-title">CALENDAR</div>
+            <div class="sidebar-bottom">
+                <div class="sidebar-section-title" style="margin-bottom: 12px;">CALENDAR</div>
                 <div id="calendar" class="calendar-container">
                     <!-- Calendar will be injected here -->
                 </div>
@@ -75,20 +86,22 @@
                 <p>Select a todo or create a new one to start editing.</p>
             </div>
             <div id="editor-container" class="editor-container hidden">
-                <div class="editor-header">
-                    <input type="text" id="todo-title-input" placeholder="Todo Title..." class="title-input">
-                    <div class="editor-actions">
-                        <button id="fullscreen-editor" class="icon-btn" title="Full Screen">⛶</button>
+                <input type="text" id="todo-title-input" placeholder="Todo Title..." class="title-input">
+
+                <div id="todo-content-editor" contenteditable="true" class="content-editor"
+                    placeholder="Start typing content here..."></div>
+
+                <div class="editor-footer-container">
+                    <div class="editor-actions-bottom">
+                        <button id="fullscreen-editor" class="icon-btn" title="Full Screen (Ctrl+Shift+F)">⛶</button>
                         <label for="image-upload" class="icon-btn upload-btn" title="Upload Image">🖼️
                             <input type="file" id="image-upload" accept="image/*" style="display: none;">
                         </label>
                         <button id="close-editor" class="icon-btn" title="Close">✕</button>
                     </div>
-                </div>
-                <div id="todo-content-editor" contenteditable="true" class="content-editor"
-                    placeholder="Start typing content here..."></div>
-                <div class="editor-footer">
-                    <span id="save-status">Saved</span>
+                    <div class="save-status-box">
+                        <span id="save-status">Saved</span>
+                    </div>
                 </div>
             </div>
         </section>
@@ -125,6 +138,12 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/isoWeek.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/weekOfYear.js"></script>
+    <script>
+        dayjs.extend(window.dayjs_plugin_isoWeek);
+        dayjs.extend(window.dayjs_plugin_weekOfYear);
+    </script>
     <script src="app.js"></script>
 </body>
 
