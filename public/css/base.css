@@ -61,14 +61,14 @@ body {
     font-family: var(--font-main);
     background-color: var(--bg-color);
     color: var(--text-color);
-    height: 100vh;
+    height: 100dvh;
     overflow: hidden;
     transition: background-color 0.3s, color 0.3s;
 }
 
 .app-container {
     display: flex;
-    height: 100vh;
+    height: 100dvh;
     width: 100vw;
     position: relative;
     overflow: hidden;
@@ -180,7 +180,7 @@ body.resizing {
 
     .app-container {
         padding-top: calc(var(--mobile-header-height) + env(safe-area-inset-top));
-        height: 100vh;
+        height: 100dvh;
         width: 100vw;
     }
 
@@ -194,7 +194,7 @@ body.resizing {
         top: 0;
         left: 0;
         width: 100vw;
-        height: 100vh;
+        height: 100dvh;
         background: rgba(0, 0, 0, 0.4);
         backdrop-filter: blur(2px);
         z-index: 900;

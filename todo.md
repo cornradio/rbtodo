@@ -114,3 +114,12 @@ saved状态显示更多信息
 list 也需要状态信息、同步按钮 放在底部。 and 我添加了 
 icon.png ，替换图标成这个。
 rb 图标在网页版 也要加上。 然后notes里面把 fullscreen挪到顶部，x的左边。
+
+## v1.5
+- [x]  把这些 js 变成本地引用。
+    dayjs.min.js
+    isoWeek.js
+    weekOfYear.js
+
+- [x] 高度使用 dvh ， 保证 safari 底部栏可视。
+- [x] notes 中加入链接需要自动让链接变成可以点击的蓝色链接。

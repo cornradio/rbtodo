@@ -1,6 +1,6 @@
 .sidebar {
     width: 280px;
-    height: 100vh;
+    height: 100dvh;
     flex-shrink: 0;
     background-color: var(--sidebar-bg);
     border-right: 1px solid var(--border-color);
@@ -288,7 +288,7 @@
         bottom: 0;
         width: 85vw;
         max-width: 300px;
-        height: 100vh;
+        height: 100dvh;
         z-index: 1100;
         box-shadow: 10px 0 30px rgba(0, 0, 0, 0.1);
         transform: translateX(-100%);

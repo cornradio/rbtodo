@@ -86,6 +86,10 @@ function setupEventListeners() {
 
     // Paste image support
     contentEditor.addEventListener('paste', handlePaste);
+    contentEditor.addEventListener('blur', () => {
+        linkify(contentEditor);
+        autoSave();
+    });
 
     document.getElementById('image-upload').addEventListener('change', handleImageUpload);
 
@@ -619,6 +623,7 @@ function openTodo(todo) {
 
     titleInput.value = todo.title || '';
     contentEditor.innerHTML = todo.content || '';
+    linkify(contentEditor);
 
     updateDrawerBackdrop();
     renderTodoLists();
@@ -857,6 +862,33 @@ function checkPrefersColorScheme() {
         state.isDarkMode = true;
         document.body.className = 'dark-mode';
     }
+}
+
+function linkify(element) {
+    const walk = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+    let node;
+    const textNodes = [];
+    while (node = walk.nextNode()) {
+        if (node.parentNode.tagName !== 'A' && node.parentNode.tagName !== 'SCRIPT' && node.parentNode.tagName !== 'STYLE') {
+            textNodes.push(node);
+        }
+    }
+
+    textNodes.forEach(textNode => {
+        const text = textNode.nodeValue;
+        const urlPattern = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+        if (urlPattern.test(text)) {
+            const span = document.createElement('span');
+            span.innerHTML = text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+            const parent = textNode.parentNode;
+            if (parent) {
+                while (span.firstChild) {
+                    parent.insertBefore(span.firstChild, textNode);
+                }
+                parent.removeChild(textNode);
+            }
+        }
+    });
 }
 
 // Start

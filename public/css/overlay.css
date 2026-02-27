@@ -3,7 +3,7 @@
     top: 0;
     left: 0;
     width: 100vw;
-    height: 100vh;
+    height: 100dvh;
     background-color: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
     z-index: 3000;
@@ -21,7 +21,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    max-height: 85vh;
+    max-height: 85dvh;
 }
 
 .search-results-header {
