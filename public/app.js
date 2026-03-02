@@ -97,6 +97,15 @@ function setupEventListeners() {
         autoSave();
     });
 
+    // Fix link clicking in contenteditable
+    contentEditor.addEventListener('click', (e) => {
+        const link = e.target.closest('a');
+        if (link) {
+            e.preventDefault();
+            window.open(link.href, '_blank');
+        }
+    });
+
     document.getElementById('image-upload').addEventListener('change', handleImageUpload);
 
     themeToggle.addEventListener('click', toggleTheme);
@@ -166,8 +175,8 @@ function setupKeyboardShortcuts() {
                 toggleFullscreen();
             }
         }
-        // Ctrl + Shift + P: Open Search
-        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') {
+        // Ctrl + P: Open Search (Mac: Cmd + P)
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
             e.preventDefault();
             openSearch();
         }
@@ -426,7 +435,6 @@ function renderTodoLists() {
 
     renderList(state.oldTodos, oldTodosEl, true);
     renderList(state.todos, todayTodosEl, false);
-
     const oldFinishedCount = state.oldTodos.filter(t => !t.completed).length;
     const oldBadge = document.getElementById('old-todos-count');
     if (oldBadge) {
@@ -448,7 +456,7 @@ function renderList(todos, container, isOld) {
     todos.forEach((todo, index) => {
         const item = document.createElement('div');
         item.className = `todo-item ${todo.completed ? 'completed' : ''} ${state.selectedTodo?.id === todo.id ? 'active' : ''}`;
-        item.draggable = true;
+        item.draggable = false;
         item.dataset.id = todo.id;
         item.dataset.index = index;
         item.dataset.isOld = isOld;
@@ -492,15 +500,24 @@ function renderList(todos, container, isOld) {
         item.appendChild(title);
         item.onclick = () => openTodo(todo);
 
-        // Drag & Drop
+        // Drag & Drop DISABLED per user request
+        /*
         item.addEventListener('dragstart', handleDragStart);
         item.addEventListener('dragover', handleDragOver);
         item.addEventListener('dragleave', handleDragLeave);
-        item.addEventListener('drop', (e) => handleDrop(e, isOld));
+        item.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const toIdx = parseInt(item.dataset.index);
+            handleDrop(isOld, toIdx);
+        });
         item.addEventListener('dragend', handleDragEnd);
+        */
 
         container.appendChild(item);
     });
+
+    // Drag & Drop Containers DISABLED
 }
 
 // --- Drag & Drop Handlers ---
@@ -508,6 +525,7 @@ let draggedItem = null;
 
 function handleDragStart(e) {
     draggedItem = this;
+    console.log(`[DragStart] id: ${this.dataset.id}, fromIndex: ${this.dataset.index}, isOld: ${this.dataset.isOld}`);
     this.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
 }
@@ -523,44 +541,90 @@ function handleDragLeave(e) {
 }
 
 function handleDragEnd(e) {
+    console.log(`[DragEnd] id: ${this.dataset.id}`);
     this.classList.remove('dragging');
     document.querySelectorAll('.todo-item').forEach(el => el.classList.remove('drag-over'));
     draggedItem = null;
 }
 
-function handleDrop(e, isOld) {
-    e.preventDefault();
-    this.classList.remove('drag-over');
+function handleDrop(targetIsOld, toIndex) {
+    // Disabled
+    return;
+    document.querySelectorAll('.todo-item').forEach(el => el.classList.remove('drag-over'));
 
-    if (!draggedItem || draggedItem === this) return;
+    if (!draggedItem) return;
 
     const sourceIsOld = draggedItem.dataset.isOld === 'true';
-    const targetIsOld = isOld;
-    const fromIndex = parseInt(draggedItem.dataset.index);
-    const toIndex = parseInt(this.dataset.index);
+    const todoId = draggedItem.dataset.id;
+
+    // Safety check: isAllTasksView reordering
+    if (state.isAllTasksView) {
+        const fromIdx = state.allTodos.findIndex(t => t.id === todoId);
+        if (fromIdx !== -1) {
+            const [item] = state.allTodos.splice(fromIdx, 1);
+            const destination = toIndex === -1 ? state.allTodos.length : toIndex;
+            state.allTodos.splice(destination, 0, item);
+            renderTodoLists();
+        }
+        return;
+    }
+
+    // Normal view handling
+    const sourceList = sourceIsOld ? state.oldTodos : state.todos;
+    const targetList = targetIsOld ? state.oldTodos : state.todos;
+
+    const fromIndex = sourceList.findIndex(t => t.id === todoId);
+    if (fromIndex === -1) {
+        console.warn('Item not found in source list during drop');
+        return;
+    }
+
+    // BLOCK: Today -> Old (as requested/implied to avoid confusion)
+    if (!sourceIsOld && targetIsOld) {
+        console.log('Today -> Old dragging is not allowed to prevent confusion.');
+        return;
+    }
+
+    const [movedItem] = sourceList.splice(fromIndex, 1);
+    if (!movedItem) return;
 
     if (sourceIsOld === targetIsOld) {
-        // Same list reordering
-        const list = sourceIsOld ? state.oldTodos : state.todos;
-        const [movedItem] = list.splice(fromIndex, 1);
-        list.splice(toIndex, 0, movedItem);
-    } else {
-        // Move between lists
-        const sourceList = sourceIsOld ? state.oldTodos : state.todos;
-        const targetList = targetIsOld ? state.oldTodos : state.todos;
-        const [movedItem] = sourceList.splice(fromIndex, 1);
-
-        if (!targetIsOld) {
-            movedItem.date = state.selectedDate;
-            saveTodoData(movedItem);
-        } else {
-            // Moving back to old (just moves in memory for now)
-            // In a real app we might update the date to yesterday
+        // Reordering within the same section
+        let destination = toIndex;
+        if (toIndex === -1) {
+            destination = sourceList.length;
+        } else if (fromIndex < toIndex) {
+            // Already shifted because of splice 
+            destination = toIndex;
         }
-        targetList.splice(toIndex, 0, movedItem);
+        sourceList.splice(destination, 0, movedItem);
+    } else {
+        // Moving from Old -> Today
+        const originalDate = movedItem.date;
+        movedItem.date = state.selectedDate;
+
+        // Save to new date
+        saveTodoData(movedItem);
+
+        // Explicitly remove from old date on server
+        if (originalDate && originalDate !== state.selectedDate) {
+            fetch('/api/todos/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date: originalDate, id: movedItem.id })
+            }).catch(console.error);
+        }
+
+        let destination = toIndex;
+        if (toIndex === -1) {
+            destination = targetList.length;
+        }
+        targetList.splice(destination, 0, movedItem);
     }
 
     renderTodoLists();
+
+    // Persist Today's order after move/reorder
     if (!targetIsOld) {
         saveTodosOrder(state.selectedDate, state.todos);
     }

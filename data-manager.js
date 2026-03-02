@@ -86,15 +86,22 @@ export async function getOldUnfinishedTodos(currentDate) {
     for (const file of files) {
         if (!file.endsWith('.json')) continue;
         const filePath = path.join(DATA_DIR, file);
-        const data = JSON.parse(await fs.readFile(filePath, 'utf-8'));
+        try {
+            const data = JSON.parse(await fs.readFile(filePath, 'utf-8'));
 
-        for (const date in data) {
-            if (dayjs(date).isBefore(today, 'day')) {
-                const unfinished = data[date].todos.filter(t => !t.completed);
-                if (unfinished.length > 0) {
-                    allOldUnfinished.push(...unfinished.map(t => ({ ...t, date })));
+            for (const date in data) {
+                if (dayjs(date).isBefore(today, 'day')) {
+                    const section = data[date];
+                    if (section && Array.isArray(section.todos)) {
+                        const unfinished = section.todos.filter(t => t && !t.completed);
+                        if (unfinished.length > 0) {
+                            allOldUnfinished.push(...unfinished.map(t => ({ ...t, date })));
+                        }
+                    }
                 }
             }
+        } catch (err) {
+            console.error(`Error parsing ${file}:`, err);
         }
     }
     return allOldUnfinished;
@@ -111,11 +118,15 @@ export async function getAllDatesWithTodos() {
     for (const file of files) {
         if (!file.endsWith('.json')) continue;
         const filePath = path.join(DATA_DIR, file);
-        const data = JSON.parse(await fs.readFile(filePath, 'utf-8'));
-        for (const date in data) {
-            if (data[date].todos && data[date].todos.length > 0) {
-                dates.add(date);
+        try {
+            const data = JSON.parse(await fs.readFile(filePath, 'utf-8'));
+            for (const date in data) {
+                if (data[date] && Array.isArray(data[date].todos) && data[date].todos.length > 0) {
+                    dates.add(date);
+                }
             }
+        } catch (err) {
+            console.error(`Error parsing ${file}:`, err);
         }
     }
     return Array.from(dates);
@@ -134,17 +145,24 @@ export async function searchTodos(query) {
 
     for (const file of files) {
         if (!file.endsWith('.json')) continue;
-        const data = JSON.parse(await fs.readFile(path.join(DATA_DIR, file), 'utf-8'));
-        for (const date in data) {
-            const todos = data[date].todos;
-            for (const todo of todos) {
-                if (
-                    (todo.title && todo.title.toLowerCase().includes(q)) ||
-                    (todo.content && todo.content.toLowerCase().includes(q))
-                ) {
-                    results.push({ ...todo, date });
+        try {
+            const data = JSON.parse(await fs.readFile(path.join(DATA_DIR, file), 'utf-8'));
+            for (const date in data) {
+                const section = data[date];
+                if (section && Array.isArray(section.todos)) {
+                    for (const todo of section.todos) {
+                        if (!todo) continue;
+                        if (
+                            (todo.title && todo.title.toLowerCase().includes(q)) ||
+                            (todo.content && todo.content.toLowerCase().includes(q))
+                        ) {
+                            results.push({ ...todo, date });
+                        }
+                    }
                 }
             }
+        } catch (err) {
+            console.error(`Error parsing ${file}:`, err);
         }
     }
     return results;
@@ -173,12 +191,18 @@ export async function getAllTodos() {
     const results = [];
     for (const file of files) {
         if (!file.endsWith('.json')) continue;
-        const data = JSON.parse(await fs.readFile(path.join(DATA_DIR, file), 'utf-8'));
-        for (const date in data) {
-            const todos = data[date].todos;
-            for (const todo of todos) {
-                results.push({ ...todo, date });
+        try {
+            const data = JSON.parse(await fs.readFile(path.join(DATA_DIR, file), 'utf-8'));
+            for (const date in data) {
+                const section = data[date];
+                if (section && Array.isArray(section.todos)) {
+                    for (const todo of section.todos) {
+                        if (todo) results.push({ ...todo, date });
+                    }
+                }
             }
+        } catch (err) {
+            console.error(`Error parsing ${file}:`, err);
         }
     }
     return results;
