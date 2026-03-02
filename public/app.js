@@ -164,6 +164,56 @@ function setupEventListeners() {
 
     document.getElementById('copy-html-btn').addEventListener('click', copyAsHtml);
 
+    // Date Picker for Todo
+    const noteDateEl = document.getElementById('note-date');
+    const datePicker = document.getElementById('todo-date-picker');
+    noteDateEl?.addEventListener('click', () => {
+        if (!state.selectedTodo) return;
+        datePicker.value = (state.selectedTodo.date || state.selectedDate).split(' ')[0];
+        // Ensure browser knows focus is here for picker anchoring
+        datePicker.focus();
+        datePicker.showPicker?.() || datePicker.click();
+    });
+
+    datePicker?.addEventListener('change', async () => {
+        const newDate = datePicker.value;
+        if (!newDate || !state.selectedTodo) return;
+
+        const oldDate = state.selectedTodo.date || state.selectedDate;
+        if (newDate === oldDate) return;
+
+        if (confirm(`Move this todo to ${newDate}?`)) {
+            const todo = state.selectedTodo;
+            const previousDate = oldDate;
+            todo.date = newDate;
+
+            await saveTodoData(todo);
+            await fetch('/api/todos/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date: previousDate, id: todo.id })
+            });
+
+            selectDate(newDate);
+            openTodo(todo);
+            saveStatus.textContent = 'Moved';
+        }
+    });
+
+    // Clipboard Fallback Modal listeners
+    document.getElementById('close-copy-fallback')?.addEventListener('click', () => {
+        document.getElementById('copy-fallback-modal').classList.add('hidden');
+    });
+    document.getElementById('copy-fallback-btn')?.addEventListener('click', () => {
+        const textarea = document.getElementById('copy-fallback-textarea');
+        textarea.select();
+        document.execCommand('copy');
+        document.getElementById('copy-fallback-btn').textContent = '✅ Copied via execCommand';
+        setTimeout(() => {
+            document.getElementById('copy-fallback-btn').textContent = 'Copy to Clipboard (Fallback Method)';
+        }, 2000);
+    });
+
     // All Tasks
     const allTasksBtn = document.getElementById('all-tasks-btn');
     allTasksBtn.addEventListener('click', showAllTasks);
@@ -971,10 +1021,16 @@ function linkify(element) {
 function updateNoteStats() {
     const text = contentEditor.innerText || "";
     const chars = text.length;
+    const picCount = contentEditor.querySelectorAll('img').length;
 
     const wordCountEl = document.getElementById('note-word-count');
     if (wordCountEl) {
         wordCountEl.textContent = `${chars} chars`;
+    }
+
+    const picCountEl = document.getElementById('note-pic-count');
+    if (picCountEl) {
+        picCountEl.textContent = `${picCount} pics`;
     }
 
     const noteDate = document.getElementById('note-date');
@@ -985,7 +1041,7 @@ function updateNoteStats() {
         } else if (state.selectedTodo.date) {
             dateStr = state.selectedTodo.date;
         }
-        noteDate.textContent = dateStr ? `Created: ${dateStr}` : '';
+        noteDate.textContent = dateStr || '';
     }
 }
 
@@ -1009,9 +1065,11 @@ function handleToolbarAction(command, value) {
 }
 
 async function copyAsHtml() {
+    const copyBtn = document.getElementById('copy-html-btn');
+    const originalText = copyBtn.textContent;
+    if (copyBtn.disabled || copyBtn.textContent.includes('Loading')) return;
+
     try {
-        const copyBtn = document.getElementById('copy-html-btn');
-        const originalText = copyBtn.textContent;
         copyBtn.textContent = '⏱ Loading...';
 
         // Clone the content to manipulate it
@@ -1050,12 +1108,19 @@ async function copyAsHtml() {
         })];
 
         await navigator.clipboard.write(data);
-
         copyBtn.textContent = '✅ Copied!';
-        setTimeout(() => copyBtn.textContent = originalText, 2000);
     } catch (err) {
         console.error('Failed to copy HTML:', err);
-        alert('Copy failed. Make sure your browser supports Clipboard API with HTML.');
+        const htmlContent = contentEditor.innerHTML;
+        const fallbackModal = document.getElementById('copy-fallback-modal');
+        const fallbackTextarea = document.getElementById('copy-fallback-textarea');
+
+        fallbackModal.classList.remove('hidden');
+        fallbackTextarea.value = htmlContent;
+    } finally {
+        setTimeout(() => {
+            copyBtn.textContent = originalText;
+        }, 2000);
     }
 }
 

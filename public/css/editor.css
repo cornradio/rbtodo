@@ -219,6 +219,19 @@
 .footer-left {
     display: flex;
     align-items: center;
+    position: relative;
+}
+
+.hidden-picker {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100px;
+    height: 20px;
+    opacity: 0;
+    pointer-events: none;
+    background: transparent;
+    border: none;
 }
 
 .footer-right {
@@ -233,6 +246,17 @@
     margin-right: 20px;
     font-weight: 500;
 }
+
+.clickable-date {
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.clickable-date:hover {
+    color: var(--accent-color);
+    text-decoration: underline;
+}
+
 
 .reload-btn {
     font-size: 1.2rem !important;

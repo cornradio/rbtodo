@@ -193,8 +193,10 @@
 
                 <footer class="editor-footer-container">
                     <div class="footer-left">
-                        <span id="note-date" class="note-stats"></span>
-                        <span id="note-word-count" class="note-stats">0 words</span>
+                        <span id="note-date" class="note-stats clickable-date" title="Click to change date"></span>
+                        <input type="date" id="todo-date-picker" class="hidden-picker">
+                        <span id="note-word-count" class="note-stats">0 chars</span>
+                        <span id="note-pic-count" class="note-stats">0 pics</span>
                     </div>
                     <div class="footer-right">
                         <button id="manual-reload" class="icon-btn reload-btn"
@@ -238,6 +240,27 @@
                 </div>
                 <div class="export-content">
                     <textarea id="export-textarea" readonly></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Copy Fallback Modal -->
+        <div id="copy-fallback-modal" class="search-overlay hidden">
+            <div class="search-results-window">
+                <div class="search-results-header">
+                    <h3>Manual Copy Required</h3>
+                    <button id="close-copy-fallback" class="icon-btn">✕</button>
+                </div>
+                <div class="export-content">
+                    <p style="margin-bottom: 12px; font-size: 0.9rem; opacity: 0.8;">
+                        Your browser blocked automatic clipboard access (likely due to non-HTTPS connection).
+                        Please copy the content below manually.
+                    </p>
+                    <textarea id="copy-fallback-textarea" style="height: 300px;"></textarea>
+                    <div style="margin-top: 16px; display: flex; gap: 10px;">
+                        <button id="copy-fallback-btn" class="add-btn" style="flex: 1;">Copy to Clipboard (Fallback
+                            Method)</button>
+                    </div>
                 </div>
             </div>
         </div>
