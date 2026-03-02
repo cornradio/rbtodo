@@ -150,15 +150,29 @@ function setupEventListeners() {
     listManualReloadBtn?.addEventListener('click', async () => {
         listManualReloadBtn.classList.add('spinning');
         await loadTodos();
-        setTimeout(() => listManualReloadBtn.classList.remove('spinning'), 600);
+        listManualReloadBtn.classList.remove('spinning');
     });
+
+    // Toolbar Actions
+    document.querySelectorAll('.toolbar-btn[data-command]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const command = btn.dataset.command;
+            const value = btn.dataset.value;
+            handleToolbarAction(command, value);
+        });
+    });
+
+    document.getElementById('copy-html-btn').addEventListener('click', copyAsHtml);
 
     // All Tasks
     const allTasksBtn = document.getElementById('all-tasks-btn');
     allTasksBtn.addEventListener('click', showAllTasks);
 
     // Old Todos Collapse
-    document.getElementById('old-todos-header').addEventListener('click', toggleOldTodosCollapse);
+    const oldTodosHeader = document.getElementById('old-todos-header');
+    if (oldTodosHeader) {
+        oldTodosHeader.addEventListener('click', toggleOldTodosCollapse);
+    }
 }
 
 function setupKeyboardShortcuts() {
@@ -548,86 +562,8 @@ function handleDragEnd(e) {
 }
 
 function handleDrop(targetIsOld, toIndex) {
-    // Disabled
+    // Disabled per user request
     return;
-    document.querySelectorAll('.todo-item').forEach(el => el.classList.remove('drag-over'));
-
-    if (!draggedItem) return;
-
-    const sourceIsOld = draggedItem.dataset.isOld === 'true';
-    const todoId = draggedItem.dataset.id;
-
-    // Safety check: isAllTasksView reordering
-    if (state.isAllTasksView) {
-        const fromIdx = state.allTodos.findIndex(t => t.id === todoId);
-        if (fromIdx !== -1) {
-            const [item] = state.allTodos.splice(fromIdx, 1);
-            const destination = toIndex === -1 ? state.allTodos.length : toIndex;
-            state.allTodos.splice(destination, 0, item);
-            renderTodoLists();
-        }
-        return;
-    }
-
-    // Normal view handling
-    const sourceList = sourceIsOld ? state.oldTodos : state.todos;
-    const targetList = targetIsOld ? state.oldTodos : state.todos;
-
-    const fromIndex = sourceList.findIndex(t => t.id === todoId);
-    if (fromIndex === -1) {
-        console.warn('Item not found in source list during drop');
-        return;
-    }
-
-    // BLOCK: Today -> Old (as requested/implied to avoid confusion)
-    if (!sourceIsOld && targetIsOld) {
-        console.log('Today -> Old dragging is not allowed to prevent confusion.');
-        return;
-    }
-
-    const [movedItem] = sourceList.splice(fromIndex, 1);
-    if (!movedItem) return;
-
-    if (sourceIsOld === targetIsOld) {
-        // Reordering within the same section
-        let destination = toIndex;
-        if (toIndex === -1) {
-            destination = sourceList.length;
-        } else if (fromIndex < toIndex) {
-            // Already shifted because of splice 
-            destination = toIndex;
-        }
-        sourceList.splice(destination, 0, movedItem);
-    } else {
-        // Moving from Old -> Today
-        const originalDate = movedItem.date;
-        movedItem.date = state.selectedDate;
-
-        // Save to new date
-        saveTodoData(movedItem);
-
-        // Explicitly remove from old date on server
-        if (originalDate && originalDate !== state.selectedDate) {
-            fetch('/api/todos/delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date: originalDate, id: movedItem.id })
-            }).catch(console.error);
-        }
-
-        let destination = toIndex;
-        if (toIndex === -1) {
-            destination = targetList.length;
-        }
-        targetList.splice(destination, 0, movedItem);
-    }
-
-    renderTodoLists();
-
-    // Persist Today's order after move/reorder
-    if (!targetIsOld) {
-        saveTodosOrder(state.selectedDate, state.todos);
-    }
 }
 
 // --- Actions ---
@@ -1024,6 +960,77 @@ function linkify(element) {
             }
         }
     });
+}
+
+// --- Toolbar & Context Actions ---
+function handleToolbarAction(command, value) {
+    if (command === 'fontSize') {
+        if (value === 'reset') {
+            document.execCommand('fontSize', false, "3"); // Default size
+        } else {
+            const current = document.queryCommandValue('fontSize') || "3";
+            let newSize = parseInt(current);
+            if (value === 'increase' && newSize < 7) newSize++;
+            if (value === 'decrease' && newSize > 1) newSize--;
+            document.execCommand('fontSize', false, newSize);
+        }
+    } else if (command === 'foreColor' && value === 'clear') {
+        document.execCommand('removeFormat', false, null);
+    } else {
+        document.execCommand(command, false, value);
+    }
+    contentEditor.focus();
+}
+
+async function copyAsHtml() {
+    try {
+        const copyBtn = document.getElementById('copy-html-btn');
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = '⏱ Loading...';
+
+        // Clone the content to manipulate it
+        const clone = contentEditor.cloneNode(true);
+        const images = clone.querySelectorAll('img');
+
+        // Replace all local images with base64 for embedding in Word/Email
+        for (const img of images) {
+            try {
+                const response = await fetch(img.src);
+                const blob = await response.blob();
+                const reader = new FileReader();
+                const base64 = await new Promise((resolve) => {
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.readAsDataURL(blob);
+                });
+                img.src = base64;
+                // Add some styling for display in Word
+                img.style.maxWidth = '100%';
+                img.style.display = 'block';
+                img.style.margin = '10px 0';
+            } catch (err) {
+                console.error('Failed to embed image:', err);
+            }
+        }
+
+        const html = clone.innerHTML;
+        const text = clone.innerText;
+
+        // Use modern Clipboard API to write both HTML and Text
+        const type = "text/html";
+        const blob = new Blob([html], { type });
+        const data = [new ClipboardItem({
+            [type]: blob,
+            ["text/plain"]: new Blob([text], { type: "text/plain" })
+        })];
+
+        await navigator.clipboard.write(data);
+
+        copyBtn.textContent = '✅ Copied!';
+        setTimeout(() => copyBtn.textContent = originalText, 2000);
+    } catch (err) {
+        console.error('Failed to copy HTML:', err);
+        alert('Copy failed. Make sure your browser supports Clipboard API with HTML.');
+    }
 }
 
 // Start

@@ -157,19 +157,49 @@
                 </div>
                 <input type="text" id="todo-title-input" placeholder="Todo Title..." class="title-input">
 
+                <div class="editor-toolbar">
+                    <div class="toolbar-group">
+                        <div class="toolbar-subgroup color-buttons">
+                            <button class="toolbar-btn color-red" data-command="foreColor" data-value="#ff3b30"
+                                title="Red Text">A</button>
+                            <button class="toolbar-btn color-blue" data-command="foreColor" data-value="#007aff"
+                                title="Blue Text">A</button>
+                            <button class="toolbar-btn color-green" data-command="foreColor" data-value="#34c759"
+                                title="Green Text">A</button>
+                            <button class="toolbar-btn color-clear" data-command="foreColor" data-value="clear"
+                                title="Clear Color">A</button>
+                        </div>
+                        <span class="toolbar-divider"></span>
+                        <button class="toolbar-btn" data-command="fontSize" data-value="increase"
+                            title="Increase Font Size">A+</button>
+                        <button class="toolbar-btn" data-command="fontSize" data-value="reset"
+                            title="Original Font Size">A0</button>
+                        <button class="toolbar-btn" data-command="fontSize" data-value="decrease"
+                            title="Decrease Font Size">A-</button>
+                        <span class="toolbar-divider"></span>
+                        <button class="toolbar-btn" data-command="insertUnorderedList" title="Unordered List">•</button>
+                    </div>
+                    <div class="toolbar-group">
+                        <label for="image-upload" class="toolbar-btn" title="Insert Image">🖼️
+                            <input type="file" id="image-upload" accept="image/*" style="display: none;">
+                        </label>
+                        <button id="copy-html-btn" class="toolbar-btn" title="Copy as HTML (with images)">📋
+                            HTML</button>
+                    </div>
+                </div>
+
                 <div id="todo-content-editor" contenteditable="true" class="content-editor"
                     placeholder="Start typing content here..."></div>
 
                 <div class="editor-footer-container">
-                    <div class="editor-actions-bottom">
-                        <label for="image-upload" class="icon-btn upload-btn" title="Upload Image">🖼️
-                            <input type="file" id="image-upload" accept="image/*" style="display: none;">
-                        </label>
-                        <button id="delete-todo" class="icon-btn delete-btn" title="Delete (Permanently)">🗑️</button>
+                    <div class="footer-left-group">
+                        <!-- Left side can be empty or used for word count later -->
                     </div>
                     <div class="footer-right-group">
                         <button id="manual-reload" class="icon-btn reload-btn"
                             title="Manual Reload from Server">↻</button>
+                        <button id="delete-todo" class="text-btn delete-btn"
+                            title="Delete (Permanently)">Delete</button>
                         <div class="save-status-box">
                             <span id="save-status">Saved</span>
                         </div>
