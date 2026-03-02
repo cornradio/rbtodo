@@ -191,11 +191,12 @@
                 <div id="todo-content-editor" contenteditable="true" class="content-editor"
                     placeholder="Start typing content here..."></div>
 
-                <div class="editor-footer-container">
-                    <div class="footer-left-group">
-                        <!-- Left side can be empty or used for word count later -->
+                <footer class="editor-footer-container">
+                    <div class="footer-left">
+                        <span id="note-date" class="note-stats"></span>
+                        <span id="note-word-count" class="note-stats">0 words</span>
                     </div>
-                    <div class="footer-right-group">
+                    <div class="footer-right">
                         <button id="manual-reload" class="icon-btn reload-btn"
                             title="Manual Reload from Server">↻</button>
                         <button id="delete-todo" class="text-btn delete-btn"
@@ -204,7 +205,7 @@
                             <span id="save-status">Saved</span>
                         </div>
                     </div>
-                </div>
+                </footer>
             </div>
         </section>
 

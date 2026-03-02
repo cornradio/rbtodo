@@ -641,7 +641,8 @@ function createNewTodo() {
         title: '',
         content: '',
         completed: false,
-        date: state.selectedDate
+        date: state.selectedDate,
+        createdAt: dayjs().toISOString()
     };
     state.todos.push(newTodo);
     renderTodoLists();
@@ -663,6 +664,7 @@ function openTodo(todo) {
 
     updateDrawerBackdrop();
     renderTodoLists();
+    updateNoteStats();
 }
 
 async function toggleTodoComplete(todo) {
@@ -728,6 +730,8 @@ function autoSave() {
     state.selectedTodo.title = titleInput.value;
     state.selectedTodo.content = contentEditor.innerHTML;
 
+    updateNoteStats();
+
     saveTodoData(state.selectedTodo).then(() => {
         const activeItemTitle = document.querySelector(`.todo-item.active .todo-title`);
         if (activeItemTitle) activeItemTitle.textContent = state.selectedTodo.title || '(No Title)';
@@ -747,6 +751,7 @@ async function manualReloadTodo() {
             state.selectedTodo = updatedTodo;
             titleInput.value = updatedTodo.title || '';
             contentEditor.innerHTML = updatedTodo.content || '';
+            updateNoteStats();
             saveStatus.textContent = 'Reloaded';
             setTimeout(() => saveStatus.textContent = 'Saved', 2000);
         }
@@ -963,6 +968,27 @@ function linkify(element) {
 }
 
 // --- Toolbar & Context Actions ---
+function updateNoteStats() {
+    const text = contentEditor.innerText || "";
+    const chars = text.length;
+
+    const wordCountEl = document.getElementById('note-word-count');
+    if (wordCountEl) {
+        wordCountEl.textContent = `${chars} chars`;
+    }
+
+    const noteDate = document.getElementById('note-date');
+    if (noteDate && state.selectedTodo) {
+        let dateStr = "";
+        if (state.selectedTodo.createdAt) {
+            dateStr = dayjs(state.selectedTodo.createdAt).format('YYYY-MM-DD HH:mm');
+        } else if (state.selectedTodo.date) {
+            dateStr = state.selectedTodo.date;
+        }
+        noteDate.textContent = dateStr ? `Created: ${dateStr}` : '';
+    }
+}
+
 function handleToolbarAction(command, value) {
     if (command === 'fontSize') {
         if (value === 'reset') {

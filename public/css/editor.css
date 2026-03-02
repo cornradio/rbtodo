@@ -207,18 +207,31 @@
 
 .editor-footer-container {
     flex-shrink: 0;
-    padding: 5px 0;
+    padding: 12px 24px;
+    background-color: var(--sidebar-bg);
     border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    min-height: 38px;
+    min-height: 44px;
 }
 
-.footer-right-group {
+.footer-left {
     display: flex;
     align-items: center;
-    gap: 16px;
+}
+
+.footer-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.note-stats {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-right: 20px;
+    font-weight: 500;
 }
 
 .reload-btn {
