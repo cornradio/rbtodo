@@ -58,6 +58,12 @@
             <div class="sidebar-content-top">
                 <div class="sidebar-section">
                     <div class="sidebar-section-header">
+                        <div class="sidebar-section-title">TASKS</div>
+                        <button id="all-tasks-btn" class="export-btn">All Tasks</button>
+                    </div>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-header">
                         <div class="sidebar-section-title">TIMELINE</div>
                         <button id="export-week-btn" class="export-btn">Export</button>
                     </div>
@@ -78,22 +84,35 @@
         <!-- Main Content: Todo List -->
         <main class="todo-list-section" id="todo-list-section">
             <div class="todo-list-content">
-                <section class="section-group">
-                    <header class="section-header">
-                        <h2>OLD TODOS (UNFINISHED)</h2>
+                <section id="old-todos-section" class="section-group">
+                    <header class="section-header collapsible-header collapsed-header" id="old-todos-header">
+                        <div class="header-left">
+                            <span class="collapse-icon">▼</span>
+                            <h2>OLD TODOS (UNFINISHED)</h2>
+                            <span id="old-todos-count" class="count-badge hidden">0</span>
+                        </div>
                     </header>
-                    <div id="old-todos-list" class="todo-items-container">
+                    <div id="old-todos-list" class="todo-items-container collapsed">
                         <!-- Old todos will be injected here -->
                     </div>
                 </section>
 
-                <section class="section-group">
+                <section id="today-todos-section" class="section-group">
                     <header class="section-header">
                         <h2 id="current-date-title">TODAY'S TODOS</h2>
                         <button id="add-todo-btn" class="add-btn">+ New Todo</button>
                     </header>
                     <div id="today-todos-list" class="todo-items-container">
                         <!-- Today's todos will be injected here -->
+                    </div>
+                </section>
+
+                <section id="all-todos-section" class="section-group hidden">
+                    <header class="section-header">
+                        <h2>ALL TODOS</h2>
+                    </header>
+                    <div id="all-todos-list" class="todo-items-container">
+                        <!-- All todos will be injected here -->
                     </div>
                 </section>
             </div>

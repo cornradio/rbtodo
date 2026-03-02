@@ -9,6 +9,16 @@ dayjs.extend(isoWeek);
 
 const DATA_DIR = path.resolve('data');
 
+// Ensure data directory exists
+async function ensureDataDir() {
+    try {
+        await fs.access(DATA_DIR);
+    } catch {
+        await fs.mkdir(DATA_DIR, { recursive: true });
+    }
+}
+await ensureDataDir();
+
 export async function getWeeklyFilePath(date) {
     const d = dayjs(date);
     const fileName = `${d.isoWeekYear()}-W${String(d.isoWeek()).padStart(2, '0')}.json`;
@@ -61,7 +71,12 @@ export async function updateTodosOrder(date, todos) {
 }
 
 export async function getOldUnfinishedTodos(currentDate) {
-    const files = await fs.readdir(DATA_DIR);
+    let files = [];
+    try {
+        files = await fs.readdir(DATA_DIR);
+    } catch (e) {
+        return [];
+    }
     const allOldUnfinished = [];
     const today = dayjs(currentDate);
 
@@ -86,7 +101,12 @@ export async function getOldUnfinishedTodos(currentDate) {
 }
 
 export async function getAllDatesWithTodos() {
-    const files = await fs.readdir(DATA_DIR);
+    let files = [];
+    try {
+        files = await fs.readdir(DATA_DIR);
+    } catch (e) {
+        return [];
+    }
     const dates = new Set();
     for (const file of files) {
         if (!file.endsWith('.json')) continue;
@@ -103,7 +123,12 @@ export async function getAllDatesWithTodos() {
 
 export async function searchTodos(query) {
     if (!query) return [];
-    const files = await fs.readdir(DATA_DIR);
+    let files = [];
+    try {
+        files = await fs.readdir(DATA_DIR);
+    } catch (e) {
+        return [];
+    }
     const results = [];
     const q = query.toLowerCase();
 
@@ -136,6 +161,27 @@ export async function getStatsForDates(dates) {
         };
     }
     return stats;
+}
+
+export async function getAllTodos() {
+    let files = [];
+    try {
+        files = await fs.readdir(DATA_DIR);
+    } catch (e) {
+        return [];
+    }
+    const results = [];
+    for (const file of files) {
+        if (!file.endsWith('.json')) continue;
+        const data = JSON.parse(await fs.readFile(path.join(DATA_DIR, file), 'utf-8'));
+        for (const date in data) {
+            const todos = data[date].todos;
+            for (const todo of todos) {
+                results.push({ ...todo, date });
+            }
+        }
+    }
+    return results;
 }
 
 export async function getWeeklyData(date) {

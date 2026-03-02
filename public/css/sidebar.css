@@ -1,5 +1,5 @@
 .sidebar {
-    width: 280px;
+    width: 250px;
     height: 100dvh;
     flex-shrink: 0;
     background-color: var(--sidebar-bg);
@@ -13,7 +13,7 @@
 }
 
 .sidebar.collapsed {
-    margin-left: -280px;
+    margin-left: -250px;
 }
 
 /* Sticky Sidebar Toggle - Now a child of sidebar but appears outside */

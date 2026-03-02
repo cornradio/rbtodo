@@ -8,7 +8,9 @@ const state = {
     timelineStats: {},
     isFullscreen: false,
     isSidebarCollapsed: false,
-    calendarViewDate: dayjs().startOf('month')
+    calendarViewDate: dayjs().startOf('month'),
+    isAllTasksView: false,
+    allTodos: []
 };
 
 // --- DOM Elements ---
@@ -16,6 +18,10 @@ const timelineEl = document.getElementById('timeline');
 const calendarEl = document.getElementById('calendar');
 const oldTodosEl = document.getElementById('old-todos-list');
 const todayTodosEl = document.getElementById('today-todos-list');
+const allTodosEl = document.getElementById('all-todos-list');
+const oldTodosSection = document.getElementById('old-todos-section');
+const todayTodosSection = document.getElementById('today-todos-section');
+const allTodosSection = document.getElementById('all-todos-section');
 const editorSection = document.getElementById('editor-container');
 const editorPlaceholder = document.getElementById('editor-placeholder');
 const titleInput = document.getElementById('todo-title-input');
@@ -137,6 +143,12 @@ function setupEventListeners() {
         await loadTodos();
         setTimeout(() => listManualReloadBtn.classList.remove('spinning'), 600);
     });
+
+    // All Tasks
+    document.getElementById('all-tasks-btn').addEventListener('click', showAllTasks);
+
+    // Old Todos Collapse
+    document.getElementById('old-todos-header').addEventListener('click', toggleOldTodosCollapse);
 }
 
 function setupKeyboardShortcuts() {
@@ -397,10 +409,31 @@ window.goToday = () => {
 };
 
 function renderTodoLists() {
+    if (state.isAllTasksView) {
+        renderList(state.allTodos, allTodosEl, false);
+        oldTodosSection.classList.add('hidden');
+        todayTodosSection.classList.add('hidden');
+        allTodosSection.classList.remove('hidden');
+
+        listTotalStats.textContent = `${state.allTodos.length} items total`;
+        return;
+    }
+
+    oldTodosSection.classList.remove('hidden');
+    todayTodosSection.classList.remove('hidden');
+    allTodosSection.classList.add('hidden');
+
     renderList(state.oldTodos, oldTodosEl, true);
     renderList(state.todos, todayTodosEl, false);
 
-    const remainingCount = state.todos.filter(t => !t.completed).length + state.oldTodos.filter(t => !t.completed).length;
+    const oldFinishedCount = state.oldTodos.filter(t => !t.completed).length;
+    const oldBadge = document.getElementById('old-todos-count');
+    if (oldBadge) {
+        oldBadge.textContent = oldFinishedCount;
+        oldBadge.classList.toggle('hidden', oldFinishedCount === 0);
+    }
+
+    const remainingCount = state.todos.filter(t => !t.completed).length + oldFinishedCount;
     listTotalStats.textContent = `${remainingCount} item${remainingCount !== 1 ? 's' : ''} remaining`;
 }
 
@@ -534,6 +567,7 @@ function handleDrop(e, isOld) {
 
 // --- Actions ---
 function selectDate(date) {
+    state.isAllTasksView = false;
     state.selectedDate = date;
     renderTimeline();
     renderCalendar();
@@ -757,7 +791,7 @@ function renderSearchResults(results) {
         item.innerHTML = `
             <div class="search-result-date">${todo.date}</div>
             <div class="search-result-title">${todo.title || '(No Title)'}</div>
-            <div class="search-result-snippet">${todo.content.replace(/<[^>]*>/g, '').substring(0, 100)}...</div>
+            <div class="search-result-snippet">${(todo.content || '').replace(/<[^>]*>/g, '').substring(0, 100)}...</div>
         `;
         item.onclick = () => {
             searchOverlay.classList.add('hidden');
@@ -771,6 +805,31 @@ function renderSearchResults(results) {
         searchResultsList.appendChild(item);
     });
 }
+
+function toggleOldTodosCollapse() {
+    const list = document.getElementById('old-todos-list');
+    const header = document.getElementById('old-todos-header');
+    list.classList.toggle('collapsed');
+    header.classList.toggle('collapsed-header');
+}
+
+async function showAllTasks() {
+    try {
+        const res = await fetch('/api/todos/all');
+        const results = await res.json();
+
+        state.allTodos = results;
+        state.isAllTasksView = true;
+        renderTodoLists();
+
+        // Scroll to top
+        document.querySelector('.todo-list-content').scrollTop = 0;
+    } catch (e) {
+        console.error(e);
+        alert('Failed to load all tasks.');
+    }
+}
+
 
 // --- Image Handling ---
 async function handlePaste(e) {

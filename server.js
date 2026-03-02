@@ -11,7 +11,8 @@ import {
     searchTodos,
     getStatsForDates,
     getWeeklyData,
-    deleteTodo
+    deleteTodo,
+    getAllTodos
 } from './data-manager.js';
 
 const app = express();
@@ -33,6 +34,15 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // API Endpoints
+app.get('/api/todos/all', async (req, res) => {
+    try {
+        const results = await getAllTodos();
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/todos', async (req, res) => {
     const { date } = req.query;
     try {
