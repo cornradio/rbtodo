@@ -145,7 +145,8 @@ function setupEventListeners() {
     });
 
     // All Tasks
-    document.getElementById('all-tasks-btn').addEventListener('click', showAllTasks);
+    const allTasksBtn = document.getElementById('all-tasks-btn');
+    allTasksBtn.addEventListener('click', showAllTasks);
 
     // Old Todos Collapse
     document.getElementById('old-todos-header').addEventListener('click', toggleOldTodosCollapse);
@@ -568,6 +569,7 @@ function handleDrop(e, isOld) {
 // --- Actions ---
 function selectDate(date) {
     state.isAllTasksView = false;
+    document.getElementById('all-tasks-btn').classList.remove('active');
     state.selectedDate = date;
     renderTimeline();
     renderCalendar();
@@ -820,6 +822,16 @@ async function showAllTasks() {
 
         state.allTodos = results;
         state.isAllTasksView = true;
+
+        // UI updates for active state
+        document.getElementById('all-tasks-btn').classList.add('active');
+        document.getElementById('sidebar-all-count').textContent = results.length;
+
+        // Remove active from any timeline items
+        document.querySelectorAll('.timeline-item').forEach(el => {
+            if (el.id !== 'all-tasks-btn') el.classList.remove('active');
+        });
+
         renderTodoLists();
 
         // Scroll to top

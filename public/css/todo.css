@@ -105,9 +105,41 @@
 
 .todo-item.active {
     background-color: var(--todo-item-hover);
-    border-left: 3px solid var(--accent-color);
-    padding-left: 9px;
-    /* Compensate for the border left */
+    position: relative;
+    padding-left: 12px;
+    /* Restore original padding */
+}
+
+.todo-item.active::before {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background-color: var(--accent-color);
+    border-radius: 4px 0 0 4px;
+    box-shadow: -2px 0 10px rgba(0, 122, 255, 0.2);
+    z-index: 2;
+}
+
+/* Connection line to notes top */
+.todo-item.active::after {
+    content: '';
+    position: absolute;
+    right: -40px;
+    /* Matches .todo-list-content padding-right */
+    top: 50%;
+    height: 2000px;
+    /* Reaches far up */
+    width: 41px;
+    /* Slightly overlap editor border */
+    border-top: 1.5px solid var(--accent-color);
+    border-right: 1.5px solid var(--accent-color);
+    transform: translateY(-100%);
+    opacity: 0.4;
+    pointer-events: none;
+    z-index: 1;
 }
 
 .todo-item.drag-over {
