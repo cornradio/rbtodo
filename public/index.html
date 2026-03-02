@@ -201,10 +201,12 @@
                     <div class="footer-right">
                         <button id="manual-reload" class="icon-btn reload-btn"
                             title="Manual Reload from Server">↻</button>
-                        <button id="delete-todo" class="text-btn delete-btn"
-                            title="Delete (Permanently)">Delete</button>
-                        <div class="save-status-box">
-                            <span id="save-status">Saved</span>
+                        <div class="editor-footer-actions">
+                            <button id="delete-todo" class="text-btn delete-btn"
+                                title="Delete (Permanently)">Delete</button>
+                            <div class="save-status-box">
+                                <span id="save-status">Saved</span>
+                            </div>
                         </div>
                     </div>
                 </footer>
@@ -220,7 +222,7 @@
                         <input type="text" id="search-input" placeholder="Search your productivity..."
                             autocomplete="off">
                     </div>
-                    <button id="close-search" class="icon-btn">✕</button>
+                    <button id="close-search" class="icon-btn modal-close-btn">✕</button>
                 </div>
                 <div id="search-results-list" class="search-results-list">
                     <!-- Results will be injected here -->
@@ -235,7 +237,7 @@
                     <h3>Weekly Export</h3>
                     <div class="header-btns">
                         <button id="copy-export" class="add-btn">Copy Text</button>
-                        <button id="close-export" class="icon-btn">✕</button>
+                        <button id="close-export" class="icon-btn modal-close-btn">✕</button>
                     </div>
                 </div>
                 <div class="export-content">
@@ -249,7 +251,7 @@
             <div class="search-results-window">
                 <div class="search-results-header">
                     <h3>Manual Copy Required</h3>
-                    <button id="close-copy-fallback" class="icon-btn">✕</button>
+                    <button id="close-copy-fallback" class="icon-btn modal-close-btn">✕</button>
                 </div>
                 <div class="export-content">
                     <p style="margin-bottom: 12px; font-size: 0.9rem; opacity: 0.8;">
@@ -262,6 +264,30 @@
                             Method)</button>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightbox Modal -->
+    <div id="lightbox-modal" class="lightbox-overlay hidden">
+        <button id="close-lightbox" class="lightbox-close">✕</button>
+        <button id="prev-image" class="lightbox-nav prev">‹</button>
+        <div class="lightbox-content">
+            <img id="lightbox-img" src="" alt="Full view">
+        </div>
+        <button id="next-image" class="lightbox-nav next">›</button>
+        <div id="lightbox-caption" class="lightbox-caption"></div>
+    </div>
+
+    <!-- Image List Modal -->
+    <div id="image-list-modal" class="search-overlay hidden">
+        <div class="search-results-window">
+            <div class="search-results-header">
+                <h3>Images in Note</h3>
+                <button id="close-image-list" class="icon-btn modal-close-btn">✕</button>
+            </div>
+            <div id="image-grid" class="image-grid">
+                <!-- Images will be injected here -->
             </div>
         </div>
     </div>

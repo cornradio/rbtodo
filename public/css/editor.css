@@ -207,13 +207,20 @@
 
 .editor-footer-container {
     flex-shrink: 0;
-    padding: 12px 24px;
+    padding: 8px 20px;
+    /* More compact, like the todo list footer */
     background-color: var(--sidebar-bg);
     border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    min-height: 44px;
+    min-height: 48px;
+}
+
+.editor-footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .footer-left {
@@ -258,6 +265,16 @@
 }
 
 
+#note-pic-count {
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+#note-pic-count:hover {
+    color: var(--accent-color);
+    text-decoration: underline;
+}
+
 .reload-btn {
     font-size: 1.2rem !important;
     opacity: 0.5;
@@ -266,6 +283,18 @@
 .reload-btn:hover {
     opacity: 1;
     color: var(--accent-color) !important;
+}
+
+.delete-btn {
+    padding: 4px 12px !important;
+    border-color: transparent !important;
+    color: var(--text-secondary) !important;
+    font-size: 0.8rem !important;
+}
+
+.delete-btn:hover {
+    color: #ff3b30 !important;
+    background: rgba(255, 59, 48, 0.1) !important;
 }
 
 .reload-btn.spinning {

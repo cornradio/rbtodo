@@ -10,7 +10,9 @@ const state = {
     isSidebarCollapsed: false,
     calendarViewDate: dayjs().startOf('month'),
     isAllTasksView: false,
-    allTodos: []
+    allTodos: [],
+    currentLightboxIndex: -1,
+    activeNoteImages: []
 };
 
 // --- DOM Elements ---
@@ -43,6 +45,13 @@ const exportTextarea = document.getElementById('export-textarea');
 const closeExportBtn = document.getElementById('close-export');
 const copyExportBtn = document.getElementById('copy-export');
 const exportWeekBtn = document.getElementById('export-week-btn');
+
+const lightboxModal = document.getElementById('lightbox-modal');
+const lightboxImg = document.getElementById('lightbox-img');
+const lightboxCaption = document.getElementById('lightbox-caption');
+const imageListModal = document.getElementById('image-list-modal');
+const imageGrid = document.getElementById('image-grid');
+const picCountBtn = document.getElementById('note-pic-count');
 
 const toggleSidebarBtn = document.getElementById('toggle-sidebar-persistent');
 const fullscreenBtn = document.getElementById('fullscreen-editor');
@@ -218,6 +227,25 @@ function setupEventListeners() {
     const allTasksBtn = document.getElementById('all-tasks-btn');
     allTasksBtn.addEventListener('click', showAllTasks);
 
+    // Lightbox & Image List
+    contentEditor.addEventListener('click', (e) => {
+        if (e.target.tagName === 'IMG') {
+            const allImgs = Array.from(contentEditor.querySelectorAll('img')).map(img => img.src);
+            const index = allImgs.indexOf(e.target.src);
+            state.activeNoteImages = allImgs;
+            openLightbox(index);
+        }
+    });
+
+    picCountBtn?.addEventListener('click', openImageList);
+    document.getElementById('close-image-list')?.addEventListener('click', () => imageListModal.classList.add('hidden'));
+    document.getElementById('close-lightbox')?.addEventListener('click', closeLightbox);
+    document.getElementById('prev-image')?.addEventListener('click', prevLightboxImage);
+    document.getElementById('next-image')?.addEventListener('click', nextLightboxImage);
+    lightboxModal?.addEventListener('click', (e) => {
+        if (e.target === lightboxModal) closeLightbox();
+    });
+
     // Old Todos Collapse
     const oldTodosHeader = document.getElementById('old-todos-header');
     if (oldTodosHeader) {
@@ -243,6 +271,19 @@ function setupKeyboardShortcuts() {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
             e.preventDefault();
             openSearch();
+        }
+
+        // Lightbox Navigation
+        if (!lightboxModal.classList.contains('hidden')) {
+            if (e.key === 'ArrowRight') nextLightboxImage();
+            if (e.key === 'ArrowLeft') prevLightboxImage();
+            if (e.key === 'Escape') closeLightbox();
+        }
+
+        // Search/Image Modal Escape
+        if (e.key === 'Escape') {
+            searchOverlay.classList.add('hidden');
+            imageListModal.classList.add('hidden');
         }
 
         // Delete key
@@ -1122,6 +1163,60 @@ async function copyAsHtml() {
             copyBtn.textContent = originalText;
         }, 2000);
     }
+}
+
+
+// --- Lightbox & Image Gallery ---
+function openLightbox(index) {
+    if (index < 0 || index >= state.activeNoteImages.length) return;
+    state.currentLightboxIndex = index;
+    lightboxImg.src = state.activeNoteImages[index];
+    lightboxCaption.textContent = `${index + 1} / ${state.activeNoteImages.length}`;
+    lightboxModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+}
+
+function closeLightbox() {
+    lightboxModal.classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+function nextLightboxImage() {
+    if (state.activeNoteImages.length <= 1) return;
+    let nextIdx = state.currentLightboxIndex + 1;
+    if (nextIdx >= state.activeNoteImages.length) nextIdx = 0;
+    openLightbox(nextIdx);
+}
+
+function prevLightboxImage() {
+    if (state.activeNoteImages.length <= 1) return;
+    let prevIdx = state.currentLightboxIndex - 1;
+    if (prevIdx < 0) prevIdx = state.activeNoteImages.length - 1;
+    openLightbox(prevIdx);
+}
+
+function openImageList() {
+    const allImgs = Array.from(contentEditor.querySelectorAll('img')).map(img => img.src);
+    state.activeNoteImages = allImgs;
+
+    imageGrid.innerHTML = '';
+
+    if (allImgs.length === 0) {
+        imageGrid.innerHTML = '<p style="padding: 20px; opacity: 0.5;">No images in this note.</p>';
+    } else {
+        allImgs.forEach((src, index) => {
+            const item = document.createElement('div');
+            item.className = 'grid-image-item';
+            item.innerHTML = `<img src="${src}" alt="Note image ${index + 1}">`;
+            item.onclick = () => {
+                imageListModal.classList.add('hidden');
+                openLightbox(index);
+            };
+            imageGrid.appendChild(item);
+        });
+    }
+
+    imageListModal.classList.remove('hidden');
 }
 
 // Start
