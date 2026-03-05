@@ -12,7 +12,8 @@ const state = {
     isAllTasksView: false,
     allTodos: [],
     currentLightboxIndex: -1,
-    activeNoteImages: []
+    activeNoteImages: [],
+    isCompressionEnabled: localStorage.getItem('img-compression') === 'true'
 };
 
 // --- DOM Elements ---
@@ -97,7 +98,23 @@ function setupEventListeners() {
     document.getElementById('close-editor-top').addEventListener('click', closeEditor);
 
     titleInput.addEventListener('input', debounce(autoSave, 1000));
-    contentEditor.addEventListener('input', debounce(autoSave, 1000));
+    contentEditor.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const container = selection.getRangeAt(0).commonAncestorContainer;
+                const li = container.nodeType === 3 ? container.parentNode.closest('li') : container.closest('li');
+                if (li) {
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                        document.execCommand('outdent');
+                    } else {
+                        document.execCommand('indent');
+                    }
+                }
+            }
+        }
+    });
 
     // Paste image support
     contentEditor.addEventListener('paste', handlePaste);
@@ -115,7 +132,39 @@ function setupEventListeners() {
         }
     });
 
-    document.getElementById('image-upload').addEventListener('change', handleImageUpload);
+    // Drag & Drop image support
+    contentEditor.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+    });
+
+    contentEditor.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        const files = Array.from(e.dataTransfer.files);
+        for (const file of files) {
+            if (file.type.startsWith('image/')) {
+                await uploadAndInsertImage(file);
+            }
+        }
+    });
+
+    document.getElementById('image-upload').addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files);
+        for (const file of files) {
+            await uploadAndInsertImage(file);
+        }
+        e.target.value = ''; // Reset input
+    });
+
+    const compressToggle = document.getElementById('compression-toggle');
+    if (compressToggle) {
+        compressToggle.classList.toggle('active', state.isCompressionEnabled);
+        compressToggle.addEventListener('click', () => {
+            state.isCompressionEnabled = !state.isCompressionEnabled;
+            localStorage.setItem('img-compression', state.isCompressionEnabled);
+            compressToggle.classList.toggle('active', state.isCompressionEnabled);
+        });
+    }
 
     themeToggle.addEventListener('click', toggleTheme);
 
@@ -273,17 +322,10 @@ function setupKeyboardShortcuts() {
             openSearch();
         }
 
-        // Lightbox Navigation
+        // Lightbox Navigation (Arrow Keys)
         if (!lightboxModal.classList.contains('hidden')) {
             if (e.key === 'ArrowRight') nextLightboxImage();
             if (e.key === 'ArrowLeft') prevLightboxImage();
-            if (e.key === 'Escape') closeLightbox();
-        }
-
-        // Search/Image Modal Escape
-        if (e.key === 'Escape') {
-            searchOverlay.classList.add('hidden');
-            imageListModal.classList.add('hidden');
         }
 
         // Delete key
@@ -296,13 +338,17 @@ function setupKeyboardShortcuts() {
             }
         }
 
-        // ESC key to close overlays or editor
+        // ESC key handling (Layered)
         if (e.key === 'Escape') {
-            if (!searchOverlay.classList.contains('hidden')) {
+            if (!lightboxModal.classList.contains('hidden')) {
+                closeLightbox();
+            } else if (!searchOverlay.classList.contains('hidden')) {
                 searchOverlay.classList.add('hidden');
+            } else if (!imageListModal.classList.contains('hidden')) {
+                imageListModal.classList.add('hidden');
             } else if (!exportModal.classList.contains('hidden')) {
                 exportModal.classList.add('hidden');
-            } else if (!editorPane.classList.contains('hidden-right') || !editorPane.classList.contains('hidden')) {
+            } else if (!editorPane.classList.contains('hidden-right') && !editorPane.classList.contains('hidden')) {
                 closeEditor();
             }
         }
@@ -939,33 +985,33 @@ async function showAllTasks() {
 }
 
 
-// --- Image Handling ---
 async function handlePaste(e) {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    let imageFound = false;
     for (let item of items) {
         if (item.type.indexOf('image') !== -1) {
             e.preventDefault();
             const file = item.getAsFile();
             if (file) {
                 await uploadAndInsertImage(file);
-                imageFound = true;
-                break;
             }
         }
     }
 }
 
-async function handleImageUpload(e) {
-    const file = e.target.files[0];
-    if (file) {
-        await uploadAndInsertImage(file);
-    }
-}
-
 async function uploadAndInsertImage(file) {
+    let fileToUpload = file;
+
+    if (state.isCompressionEnabled && file.type.startsWith('image/')) {
+        try {
+            saveStatus.textContent = 'Compressing...';
+            fileToUpload = await compressImage(file);
+        } catch (err) {
+            console.warn('Compression failed, uploading original.', err);
+        }
+    }
+
     const formData = new FormData();
-    formData.append('image', file);
+    formData.append('image', fileToUpload);
 
     try {
         saveStatus.textContent = 'Uploading...';
@@ -975,14 +1021,50 @@ async function uploadAndInsertImage(file) {
         });
         const data = await res.json();
 
-        const img = document.createElement('img');
-        img.src = data.url;
-        contentEditor.appendChild(img);
+        const imgHtml = `<img src="${data.url}" style="max-width: 100%; border-radius: 12px; margin: 15px 0;">`;
+        document.execCommand('insertHTML', false, imgHtml);
         autoSave();
     } catch (e) {
         console.error(e);
         saveStatus.textContent = 'Upload failed';
     }
+}
+
+async function compressImage(file, quality = 0.7, maxWidth = 1200) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxWidth) {
+                    height = (maxWidth / width) * height;
+                    width = maxWidth;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob((blob) => {
+                    if (!blob) return reject(new Error('Canvas toBlob failed'));
+                    const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+                        type: 'image/jpeg',
+                        lastModified: Date.now(),
+                    });
+                    resolve(compressedFile);
+                }, 'image/jpeg', quality);
+            };
+            img.onerror = reject;
+        };
+        reader.onerror = reject;
+    });
 }
 
 // --- Resizer ---

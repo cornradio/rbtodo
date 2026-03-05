@@ -157,6 +157,9 @@
                 </div>
                 <input type="text" id="todo-title-input" placeholder="Todo Title..." class="title-input">
 
+                <div id="todo-content-editor" contenteditable="true" class="content-editor"
+                    placeholder="Start typing content here..."></div>
+
                 <div class="editor-toolbar">
                     <div class="toolbar-group">
                         <div class="toolbar-subgroup color-buttons">
@@ -180,16 +183,15 @@
                         <button class="toolbar-btn" data-command="insertUnorderedList" title="Unordered List">•</button>
                     </div>
                     <div class="toolbar-group">
-                        <label for="image-upload" class="toolbar-btn" title="Insert Image">🖼️
-                            <input type="file" id="image-upload" accept="image/*" style="display: none;">
+                        <button id="compression-toggle" class="toolbar-btn"
+                            title="Client-side Image Compression Toggle">🗜️</button>
+                        <label for="image-upload" class="toolbar-btn" title="Insert Images">🖼️
+                            <input type="file" id="image-upload" accept="image/*" multiple style="display: none;">
                         </label>
                         <button id="copy-html-btn" class="toolbar-btn" title="Copy as HTML (with images)">📋
                             HTML</button>
                     </div>
                 </div>
-
-                <div id="todo-content-editor" contenteditable="true" class="content-editor"
-                    placeholder="Start typing content here..."></div>
 
                 <footer class="editor-footer-container">
                     <div class="footer-left">
