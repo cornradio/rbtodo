@@ -153,6 +153,62 @@
     margin: 0 4px;
 }
 
+/* Apple-style Toggle Switch */
+.apple-switch-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 4px;
+}
+
+.toolbar-label {
+    font-size: 1rem;
+    opacity: 0.8;
+}
+
+.apple-switch {
+    width: 42px;
+    height: 24px;
+    background-color: #d1d1d6;
+    /* iOS-like deactivated grey */
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.apple-switch.active {
+    background-color: #34c759;
+    /* iOS green */
+}
+
+.apple-switch-handle {
+    width: 20px;
+    height: 20px;
+    background-color: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15), 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+.apple-switch.active .apple-switch-handle {
+    transform: translateX(18px);
+}
+
+.apple-switch:active .apple-switch-handle {
+    width: 24px;
+    /* Slight stretch on press for a tactile feel */
+}
+
+.apple-switch.active:active .apple-switch-handle {
+    transform: translateX(14px);
+    /* Corrected stretch position */
+}
+
 .color-red {
     color: #ff3b30;
 }

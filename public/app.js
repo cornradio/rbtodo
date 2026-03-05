@@ -102,14 +102,19 @@ function setupEventListeners() {
         if (e.key === 'Tab') {
             const selection = window.getSelection();
             if (selection.rangeCount > 0) {
-                const container = selection.getRangeAt(0).commonAncestorContainer;
-                const li = container.nodeType === 3 ? container.parentNode.closest('li') : container.closest('li');
-                if (li) {
+                const range = selection.getRangeAt(0);
+                const container = range.commonAncestorContainer;
+
+                // If we are inside an LI or the selection contains LIs, allow indent/outdent
+                const isLI = container.nodeType === 3 ? container.parentNode.closest('li') : (container.closest ? container.closest('li') : null);
+                const hasLI = container.querySelectorAll ? container.querySelectorAll('li').length > 0 : false;
+
+                if (isLI || hasLI) {
                     e.preventDefault();
                     if (e.shiftKey) {
-                        document.execCommand('outdent');
+                        document.execCommand('outdent', false, null);
                     } else {
-                        document.execCommand('indent');
+                        document.execCommand('indent', false, null);
                     }
                 }
             }
@@ -1252,8 +1257,48 @@ async function copyAsHtml() {
 function openLightbox(index) {
     if (index < 0 || index >= state.activeNoteImages.length) return;
     state.currentLightboxIndex = index;
-    lightboxImg.src = state.activeNoteImages[index];
+
+    const src = state.activeNoteImages[index];
+    lightboxImg.src = src;
+
+    // Display index / total
     lightboxCaption.textContent = `${index + 1} / ${state.activeNoteImages.length}`;
+
+    // Get and display dimensions & size
+    const infoEl = document.getElementById('lightbox-info');
+    if (infoEl) {
+        infoEl.textContent = 'Loading info...';
+
+        // Fetch dimensions
+        const tempImg = new Image();
+        tempImg.onload = async () => {
+            const dims = `${tempImg.naturalWidth} × ${tempImg.naturalHeight} px`;
+            let sizeStr = "";
+
+            try {
+                // Fetch file size via HEAD request (or GET if HEAD is blocked/not yielding length)
+                const res = await fetch(src, { method: 'HEAD' });
+                let size = res.headers.get('content-length');
+
+                if (!size) {
+                    const fullRes = await fetch(src);
+                    const blob = await fullRes.blob();
+                    size = blob.size;
+                }
+
+                if (size) {
+                    const kb = (size / 1024).toFixed(1);
+                    sizeStr = ` • ${kb} KB`;
+                }
+            } catch (err) {
+                console.warn('Failed to fetch image size:', err);
+            }
+
+            infoEl.textContent = dims + sizeStr;
+        };
+        tempImg.src = src;
+    }
+
     lightboxModal.classList.remove('hidden');
     document.body.style.overflow = 'hidden'; // Prevent background scrolling
 }

@@ -183,8 +183,12 @@
                         <button class="toolbar-btn" data-command="insertUnorderedList" title="Unordered List">•</button>
                     </div>
                     <div class="toolbar-group">
-                        <button id="compression-toggle" class="toolbar-btn"
-                            title="Client-side Image Compression Toggle">🗜️</button>
+                        <div class="apple-switch-wrapper" title="Client-side Image Compression">
+                            <span class="toolbar-label">🗜️</span>
+                            <div class="apple-switch" id="compression-toggle">
+                                <div class="apple-switch-handle"></div>
+                            </div>
+                        </div>
                         <label for="image-upload" class="toolbar-btn" title="Insert Images">🖼️
                             <input type="file" id="image-upload" accept="image/*" multiple style="display: none;">
                         </label>
@@ -278,7 +282,10 @@
             <img id="lightbox-img" src="" alt="Full view">
         </div>
         <button id="next-image" class="lightbox-nav next">›</button>
-        <div id="lightbox-caption" class="lightbox-caption"></div>
+        <div class="lightbox-footer">
+            <div id="lightbox-caption" class="lightbox-caption"></div>
+            <div id="lightbox-info" class="lightbox-info"></div>
+        </div>
     </div>
 
     <!-- Image List Modal -->
