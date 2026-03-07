@@ -1,11 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
 import dayjs from 'dayjs';
-import weekOfYear from 'dayjs/plugin/weekOfYear.js';
-import isoWeek from 'dayjs/plugin/isoWeek.js';
-
-dayjs.extend(weekOfYear);
-dayjs.extend(isoWeek);
 
 const DATA_DIR = path.resolve('data');
 
@@ -19,55 +14,92 @@ async function ensureDataDir() {
 }
 await ensureDataDir();
 
-export async function getWeeklyFilePath(date) {
-    const d = dayjs(date);
-    const fileName = `${d.isoWeekYear()}-W${String(d.isoWeek()).padStart(2, '0')}.json`;
-    return path.join(DATA_DIR, fileName);
+/**
+ * NEW STORAGE STRATEGY: One file per Todo
+ * Filename: YYYY-MM-DD_[ID].json
+ */
+
+function getTodoFilePath(date, id) {
+    return path.join(DATA_DIR, `${date}_${id}.json`);
 }
 
-export async function readWeeklyData(date) {
-    const filePath = await getWeeklyFilePath(date);
-    try {
-        const content = await fs.readFile(filePath, 'utf-8');
-        return JSON.parse(content);
-    } catch (err) {
-        return {};
-    }
-}
-
-export async function writeWeeklyData(date, data) {
-    const filePath = await getWeeklyFilePath(date);
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+/**
+ * Atomic write to avoid file corruption
+ */
+async function atomicWriteJson(filePath, data) {
+    const tempPath = filePath + '.tmp';
+    await fs.writeFile(tempPath, JSON.stringify(data, null, 2), 'utf-8');
+    await fs.rename(tempPath, filePath);
 }
 
 export async function getTodosForDate(date) {
-    const data = await readWeeklyData(date);
-    return data[date] || { todos: [] };
+    let files = [];
+    try {
+        files = await fs.readdir(DATA_DIR);
+    } catch (e) {
+        return { todos: [] };
+    }
+
+    const todos = [];
+    for (const file of files) {
+        if (file.startsWith(date + '_') && file.endsWith('.json')) {
+            try {
+                const content = await fs.readFile(path.join(DATA_DIR, file), 'utf-8');
+                todos.push(JSON.parse(content));
+            } catch (e) {
+                console.error(`Error reading todo file ${file}:`, e);
+            }
+        }
+    }
+    // We can sort by order here if needed, but the UI usually handles that.
+    // Let's sort by createdAt or updatedAt just in case.
+    todos.sort((a, b) => (a.order || 0) - (b.order || 0));
+    return { todos };
 }
 
-export async function saveTodo(date, todo) {
-    const data = await readWeeklyData(date);
-    if (!data[date]) {
-        data[date] = { todos: [] };
+export async function saveTodo(date, todo, expectedUpdatedAt = null) {
+    const filePath = getTodoFilePath(date, todo.id);
+    const now = Date.now();
+    let finalTodo = { ...todo, updatedAt: now };
+
+    try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        const serverTodo = JSON.parse(content);
+
+        // Conflict Detection
+        if (expectedUpdatedAt && serverTodo.updatedAt && serverTodo.updatedAt > expectedUpdatedAt) {
+            if (serverTodo.content !== todo.content || serverTodo.title !== todo.title) {
+                // Safe Append Strategy
+                finalTodo.content = `${serverTodo.content}\n\n<div class="conflict-divider">======= CONFLICT CONTENT (Someone edited) =======</div>\n\n${todo.content}`;
+                if (serverTodo.title !== todo.title) {
+                    finalTodo.title = `${serverTodo.title} [CONFLICT]`;
+                }
+                await atomicWriteJson(filePath, finalTodo);
+                return { status: 'conflict_merged', updatedAt: now, mergedContent: finalTodo.content };
+            }
+        }
+    } catch (e) {
+        // File doesn't exist yet, normal save
     }
 
-    const index = data[date].todos.findIndex(t => t.id === todo.id);
-    if (index !== -1) {
-        data[date].todos[index] = todo;
-    } else {
-        data[date].todos.push(todo);
-    }
-
-    await writeWeeklyData(date, data);
+    await atomicWriteJson(filePath, finalTodo);
+    return { status: 'saved', updatedAt: now };
 }
 
 export async function updateTodosOrder(date, todos) {
-    const data = await readWeeklyData(date);
-    if (!data[date]) {
-        data[date] = { todos: [] };
+    // Update the 'order' field in each individual file
+    for (let i = 0; i < todos.length; i++) {
+        const todo = todos[i];
+        const filePath = getTodoFilePath(date, todo.id);
+        try {
+            const content = await fs.readFile(filePath, 'utf-8');
+            const serverTodo = JSON.parse(content);
+            serverTodo.order = i;
+            await atomicWriteJson(filePath, serverTodo);
+        } catch (e) {
+            // If file missing (shouldn't happen during order update), just ignore or create
+        }
     }
-    data[date].todos = todos;
-    await writeWeeklyData(date, data);
 }
 
 export async function getOldUnfinishedTodos(currentDate) {
@@ -77,31 +109,22 @@ export async function getOldUnfinishedTodos(currentDate) {
     } catch (e) {
         return [];
     }
-    const allOldUnfinished = [];
-    const today = dayjs(currentDate);
 
-    // Sort files by name to process in order (roughly)
-    files.sort();
+    const today = dayjs(currentDate).startOf('day');
+    const allOldUnfinished = [];
 
     for (const file of files) {
-        if (!file.endsWith('.json')) continue;
-        const filePath = path.join(DATA_DIR, file);
-        try {
-            const data = JSON.parse(await fs.readFile(filePath, 'utf-8'));
+        // Only match YYYY-MM-DD_ID.json format
+        if (!/^\d{4}-\d{2}-\d{2}_.+\.json$/.test(file)) continue;
 
-            for (const date in data) {
-                if (dayjs(date).isBefore(today, 'day')) {
-                    const section = data[date];
-                    if (section && Array.isArray(section.todos)) {
-                        const unfinished = section.todos.filter(t => t && !t.completed);
-                        if (unfinished.length > 0) {
-                            allOldUnfinished.push(...unfinished.map(t => ({ ...t, date })));
-                        }
-                    }
+        const datePart = file.split('_')[0];
+        if (dayjs(datePart).isBefore(today)) {
+            try {
+                const todo = JSON.parse(await fs.readFile(path.join(DATA_DIR, file), 'utf-8'));
+                if (!todo.completed) {
+                    allOldUnfinished.push({ ...todo, date: datePart });
                 }
-            }
-        } catch (err) {
-            console.error(`Error parsing ${file}:`, err);
+            } catch (e) { }
         }
     }
     return allOldUnfinished;
@@ -114,19 +137,11 @@ export async function getAllDatesWithTodos() {
     } catch (e) {
         return [];
     }
+
     const dates = new Set();
     for (const file of files) {
-        if (!file.endsWith('.json')) continue;
-        const filePath = path.join(DATA_DIR, file);
-        try {
-            const data = JSON.parse(await fs.readFile(filePath, 'utf-8'));
-            for (const date in data) {
-                if (data[date] && Array.isArray(data[date].todos) && data[date].todos.length > 0) {
-                    dates.add(date);
-                }
-            }
-        } catch (err) {
-            console.error(`Error parsing ${file}:`, err);
+        if (/^\d{4}-\d{2}-\d{2}_.+\.json$/.test(file)) {
+            dates.add(file.split('_')[0]);
         }
     }
     return Array.from(dates);
@@ -140,30 +155,22 @@ export async function searchTodos(query) {
     } catch (e) {
         return [];
     }
+
     const results = [];
     const q = query.toLowerCase();
 
     for (const file of files) {
-        if (!file.endsWith('.json')) continue;
+        if (!/^\d{4}-\d{2}-\d{2}_.+\.json$/.test(file)) continue;
+        const datePart = file.split('_')[0];
         try {
-            const data = JSON.parse(await fs.readFile(path.join(DATA_DIR, file), 'utf-8'));
-            for (const date in data) {
-                const section = data[date];
-                if (section && Array.isArray(section.todos)) {
-                    for (const todo of section.todos) {
-                        if (!todo) continue;
-                        if (
-                            (todo.title && todo.title.toLowerCase().includes(q)) ||
-                            (todo.content && todo.content.toLowerCase().includes(q))
-                        ) {
-                            results.push({ ...todo, date });
-                        }
-                    }
-                }
+            const todo = JSON.parse(await fs.readFile(path.join(DATA_DIR, file), 'utf-8'));
+            if (
+                (todo.title && todo.title.toLowerCase().includes(q)) ||
+                (todo.content && todo.content.toLowerCase().includes(q))
+            ) {
+                results.push({ ...todo, date: datePart });
             }
-        } catch (err) {
-            console.error(`Error parsing ${file}:`, err);
-        }
+        } catch (e) { }
     }
     return results;
 }
@@ -188,33 +195,39 @@ export async function getAllTodos() {
     } catch (e) {
         return [];
     }
+
     const results = [];
     for (const file of files) {
-        if (!file.endsWith('.json')) continue;
+        if (!/^\d{4}-\d{2}-\d{2}_.+\.json$/.test(file)) continue;
+        const datePart = file.split('_')[0];
         try {
-            const data = JSON.parse(await fs.readFile(path.join(DATA_DIR, file), 'utf-8'));
-            for (const date in data) {
-                const section = data[date];
-                if (section && Array.isArray(section.todos)) {
-                    for (const todo of section.todos) {
-                        if (todo) results.push({ ...todo, date });
-                    }
-                }
-            }
-        } catch (err) {
-            console.error(`Error parsing ${file}:`, err);
-        }
+            const todo = JSON.parse(await fs.readFile(path.join(DATA_DIR, file), 'utf-8'));
+            results.push({ ...todo, date: datePart });
+        } catch (e) { }
     }
     return results;
 }
 
-export async function getWeeklyData(date) {
-    return await readWeeklyData(date);
+export async function getWeeklyData(startDate) {
+    // Return an object where keys are dates in the week
+    const result = {};
+    const start = dayjs(startDate).startOf('isoWeek');
+
+    for (let i = 0; i < 7; i++) {
+        const currentDate = start.add(i, 'day').format('YYYY-MM-DD');
+        const data = await getTodosForDate(currentDate);
+        if (data.todos.length > 0) {
+            result[currentDate] = data;
+        }
+    }
+    return result;
 }
 
 export async function deleteTodo(date, id) {
-    const data = await readWeeklyData(date);
-    if (!data[date]) return;
-    data[date].todos = data[date].todos.filter(t => t.id !== id);
-    await writeWeeklyData(date, data);
+    const filePath = getTodoFilePath(date, id);
+    try {
+        await fs.unlink(filePath);
+    } catch (e) {
+        console.warn(`Attempted to delete non-existent file: ${filePath}`);
+    }
 }

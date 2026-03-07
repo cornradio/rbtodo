@@ -33,7 +33,54 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// --- Edit Lock System ---
+const activeLocks = new Map(); // todoId -> { sessionId, updatedAt }
+const LOCK_TIMEOUT = 30000; // 30 seconds
+
+// Cleanup expired locks periodically
+setInterval(() => {
+    const now = Date.now();
+    for (const [id, lock] of activeLocks.entries()) {
+        if (now - lock.updatedAt > LOCK_TIMEOUT) {
+            activeLocks.delete(id);
+        }
+    }
+}, 10000);
+
 // API Endpoints
+app.post('/api/lock', (req, res) => {
+    const { id, sessionId } = req.body;
+    const now = Date.now();
+    const currentLock = activeLocks.get(id);
+
+    if (currentLock && currentLock.sessionId !== sessionId) {
+        // Already locked by someone else
+        return res.json({ success: false, message: 'Someone else is editing this note right now.' });
+    }
+
+    activeLocks.set(id, { sessionId, updatedAt: now });
+    res.json({ success: true });
+});
+
+app.post('/api/unlock', (req, res) => {
+    const { id, sessionId } = req.body;
+    const currentLock = activeLocks.get(id);
+    if (currentLock && currentLock.sessionId === sessionId) {
+        activeLocks.delete(id);
+    }
+    res.json({ success: true });
+});
+
+app.post('/api/lock/heartbeat', (req, res) => {
+    const { id, sessionId } = req.body;
+    const currentLock = activeLocks.get(id);
+    if (currentLock && currentLock.sessionId === sessionId) {
+        activeLocks.set(id, { sessionId, updatedAt: Date.now() });
+        return res.json({ success: true });
+    }
+    res.json({ success: false });
+});
+
 app.get('/api/todos/all', async (req, res) => {
     try {
         const results = await getAllTodos();
@@ -54,10 +101,10 @@ app.get('/api/todos', async (req, res) => {
 });
 
 app.post('/api/todos', async (req, res) => {
-    const { date, todo } = req.body;
+    const { date, todo, expectedUpdatedAt } = req.body;
     try {
-        await saveTodo(date, todo);
-        res.json({ success: true });
+        const result = await saveTodo(date, todo, expectedUpdatedAt);
+        res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

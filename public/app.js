@@ -13,7 +13,11 @@ const state = {
     allTodos: [],
     currentLightboxIndex: -1,
     activeNoteImages: [],
-    isCompressionEnabled: localStorage.getItem('img-compression') === 'true'
+    isCompressionEnabled: localStorage.getItem('img-compression') === 'true',
+    lastSyncCheck: null,
+    sessionId: Math.random().toString(36).substring(2, 15),
+    isReadOnly: false,
+    lockHeartbeatInterval: null
 };
 
 // --- DOM Elements ---
@@ -80,6 +84,7 @@ async function init() {
     checkPrefersColorScheme();
     initResizer();
     setupImageResizing();
+    startSyncCheck();
 }
 
 function registerServiceWorker() {
@@ -397,6 +402,9 @@ function setupKeyboardShortcuts() {
 }
 
 function closeEditor() {
+    if (state.selectedTodo) {
+        releaseLock(state.selectedTodo.id);
+    }
     editorPane.classList.add('hidden-right');
     editorPane.classList.add('hidden'); // Ensure no layout impact
     editorPane.classList.remove('mobile-open');
@@ -469,6 +477,7 @@ async function loadTodos() {
 }
 
 async function saveTodoData(todo) {
+    if (state.isReadOnly) return;
     const statusBox = saveStatus.parentElement;
     const listStatusBox = listSaveStatus.parentElement;
 
@@ -479,23 +488,47 @@ async function saveTodoData(todo) {
 
     const startTime = Date.now();
     try {
-        await fetch('/api/todos', {
+        const response = await fetch('/api/todos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 date: todo.date || state.selectedDate,
-                todo
+                todo,
+                expectedUpdatedAt: todo.updatedAt
             })
         });
 
-        // Ensure "Saving..." is visible for at least 600ms so user knows it happened
+        const result = await response.json();
+
+        // Ensure "Saving..." is visible for at least 600ms
         const elapsed = Date.now() - startTime;
         if (elapsed < 600) {
             await new Promise(r => setTimeout(r, 600 - elapsed));
         }
 
-        saveStatus.textContent = 'Saved';
-        listSaveStatus.textContent = 'Saved';
+        if (result.status === 'conflict_merged') {
+            // A conflict occurred and was merged on the server
+            saveStatus.textContent = 'Conflict Merged';
+            listSaveStatus.textContent = 'Conflict Merged';
+
+            // Update local state with the merged content and new timestamp
+            state.selectedTodo.content = result.mergedContent;
+            state.selectedTodo.updatedAt = result.updatedAt;
+
+            // Refresh editor UI if still open
+            if (state.selectedTodo.id === todo.id) {
+                contentEditor.innerHTML = result.mergedContent;
+                updateNoteStats();
+            }
+
+            alert('Note clash! Someone else edited this note. We\'ve kept both versions - see the bottom of the note for the conflicting content.');
+        } else {
+            saveStatus.textContent = 'Saved';
+            listSaveStatus.textContent = 'Saved';
+            if (result.updatedAt) {
+                todo.updatedAt = result.updatedAt;
+            }
+        }
         statusBox.classList.remove('saving');
         listStatusBox.classList.remove('saving');
 
@@ -827,7 +860,14 @@ function createNewTodo() {
     openTodo(newTodo);
 }
 
-function openTodo(todo) {
+async function openTodo(todo) {
+    if (state.selectedTodo && state.selectedTodo.id === todo.id) return;
+
+    // Release previous lock if any
+    if (state.selectedTodo) {
+        releaseLock(state.selectedTodo.id);
+    }
+
     state.selectedTodo = todo;
     editorPane.classList.remove('hidden-right');
     editorPane.classList.remove('hidden'); // Show resizer
@@ -840,9 +880,88 @@ function openTodo(todo) {
     contentEditor.innerHTML = todo.content || '';
     linkify(contentEditor);
 
+    // Request Lock
+    const lockResult = await requestLock(todo.id);
+    if (!lockResult.success) {
+        toggleReadOnly(true, lockResult.message);
+    } else {
+        toggleReadOnly(false);
+        startLockHeartbeat(todo.id);
+    }
+
     updateDrawerBackdrop();
     renderTodoLists();
     updateNoteStats();
+}
+
+function toggleReadOnly(readOnly, message = '') {
+    state.isReadOnly = readOnly;
+    titleInput.readOnly = readOnly;
+    contentEditor.contentEditable = !readOnly;
+
+    // UI Feedback for Read Only
+    const warning = document.getElementById('lock-warning');
+    if (readOnly) {
+        if (!warning) {
+            const warnEl = document.createElement('div');
+            warnEl.id = 'lock-warning';
+            warnEl.className = 'sync-warning-banner lock-warning';
+            warnEl.innerHTML = `<span>🔒 ${message}</span><button onclick="location.reload()">Refresh</button>`;
+            document.querySelector('.editor-container').prepend(warnEl);
+        }
+        editorPane.classList.add('read-only-mode');
+    } else {
+        warning?.remove();
+        editorPane.classList.remove('read-only-mode');
+    }
+}
+
+async function requestLock(todoId) {
+    try {
+        const res = await fetch('/api/lock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: todoId, sessionId: state.sessionId })
+        });
+        return await res.json();
+    } catch (e) {
+        return { success: false, message: 'Could not connect to server.' };
+    }
+}
+
+async function releaseLock(todoId) {
+    stopLockHeartbeat();
+    try {
+        await fetch('/api/unlock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: todoId, sessionId: state.sessionId })
+        });
+    } catch (e) { }
+}
+
+function startLockHeartbeat(todoId) {
+    stopLockHeartbeat();
+    state.lockHeartbeatInterval = setInterval(async () => {
+        try {
+            const res = await fetch('/api/lock/heartbeat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: todoId, sessionId: state.sessionId })
+            });
+            const result = await res.json();
+            if (!result.success) {
+                toggleReadOnly(true, 'Your edit lock expired. Please refresh.');
+            }
+        } catch (e) { }
+    }, 15000);
+}
+
+function stopLockHeartbeat() {
+    if (state.lockHeartbeatInterval) {
+        clearInterval(state.lockHeartbeatInterval);
+        state.lockHeartbeatInterval = null;
+    }
 }
 
 async function toggleTodoComplete(todo) {
@@ -1459,6 +1578,36 @@ function createLink() {
             if (link) link.target = "_blank";
         }
     }
+}
+
+// --- Sync & Conflict Prevention ---
+function startSyncCheck() {
+    setInterval(async () => {
+        if (!state.selectedTodo || !state.selectedTodo.id) return;
+
+        try {
+            const date = state.selectedTodo.date || state.selectedDate;
+            const res = await fetch(`/api/todos?date=${date}`);
+            const data = await res.json();
+
+            const serverTodo = data.todos?.find(t => t.id === state.selectedTodo.id);
+            if (serverTodo && serverTodo.updatedAt > (state.selectedTodo.updatedAt || 0)) {
+                // Someone updated it!
+                if (!document.getElementById('sync-warning')) {
+                    const warning = document.createElement('div');
+                    warning.id = 'sync-warning';
+                    warning.className = 'sync-warning-banner';
+                    warning.innerHTML = `
+                        <span>⚠️ This note has been updated by someone else.</span>
+                        <button onclick="location.reload()">Reload Page</button>
+                    `;
+                    document.querySelector('.editor-container').prepend(warning);
+                }
+            }
+        } catch (e) {
+            console.warn('Sync check failed:', e);
+        }
+    }, 15000); // Check every 15 seconds
 }
 
 // Start
