@@ -62,14 +62,24 @@ console.log(`\n--- Files collected in ${releaseFolderName}/ ---`);
 
 try {
     console.log(`Zipping to ${zipName}...`);
-    // Using PowerShell Command to zip.
-    // We zip the folder ITSELF so that unzipping results in a folder named 'rbtodo'.
-    const psCommand = `powershell -Command "Compress-Archive -Path '${releaseFolderName}' -DestinationPath '${zipName}' -Force"`;
-    execSync(psCommand, { stdio: 'inherit' });
+    // Zip the folder itself so unzipping results in a folder named "rbtodo".
+    if (process.platform === 'win32') {
+        const psCommand = `powershell -Command "Compress-Archive -Path '${releaseFolderName}' -DestinationPath '${zipName}' -Force"`;
+        execSync(psCommand, { stdio: 'inherit' });
+    } else if (process.platform === 'darwin') {
+        // macOS: keep parent folder but skip resource forks/__MACOSX metadata.
+        execSync(`ditto -c -k --norsrc --keepParent "${releaseFolderName}" "${zipName}"`, { stdio: 'inherit' });
+    } else {
+        // Linux/other Unix-like systems.
+        execSync(`zip -r "${zipName}" "${releaseFolderName}"`, { stdio: 'inherit' });
+    }
     console.log(`\nSuccess! Your package: ${zipName}`);
 } catch (error) {
     console.error('\nFailed to create zip file:', error.message);
-    console.log('Note: You can still manually zip the "rbtodo" folder.');
+    if (process.platform !== 'win32') {
+        console.log('Tip: make sure "zip" is installed on Linux, or use "ditto" on macOS.');
+    }
+    console.log(`Note: You can still manually zip the "${releaseFolderName}" folder.`);
 }
 
 console.log('\n--- Build Summary ---');
