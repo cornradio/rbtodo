@@ -74,6 +74,7 @@ const fullscreenBtn = document.getElementById('fullscreen-editor');
 // --- Mobile Elements ---
 const mobileMenuBtn = document.getElementById('mobile-menu-btn');
 const mobileSearchBtn = document.getElementById('mobile-search-btn');
+const mobileAppTitleText = document.getElementById('mobile-app-title-text');
 const drawerBackdrop = document.getElementById('drawer-backdrop');
 const openSearchBtn = document.getElementById('open-search-btn');
 const manualReloadBtn = document.getElementById('manual-reload');
@@ -87,6 +88,7 @@ let lastEditorRange = null;
 
 // --- Initialization ---
 async function init() {
+    await applyAppConfig();
     setupEventListeners();
     setupKeyboardShortcuts();
     registerServiceWorker();
@@ -107,6 +109,23 @@ async function init() {
             navigator.sendBeacon('/api/unlock', blob);
         }
     });
+}
+
+async function applyAppConfig() {
+    try {
+        const res = await fetch('/api/app-config');
+        if (!res.ok) return;
+
+        const config = await res.json();
+        if (config.title) {
+            document.title = config.title;
+            const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+            if (appleTitleMeta) appleTitleMeta.setAttribute('content', config.shortTitle || config.title);
+            if (mobileAppTitleText) mobileAppTitleText.textContent = config.shortTitle || config.title;
+        }
+    } catch {
+        // Keep defaults if config endpoint is unavailable.
+    }
 }
 
 function registerServiceWorker() {
@@ -734,15 +753,16 @@ function renderTodoLists() {
 
     renderList(state.oldTodos, oldTodosEl, true);
     renderList(state.todos, todayTodosEl, false);
-    const oldFinishedCount = state.oldTodos.filter(t => !t.completed).length;
+    const oldPendingCount = state.oldTodos.filter(t => !t.completed).length;
     const oldBadge = document.getElementById('old-todos-count');
     if (oldBadge) {
-        oldBadge.textContent = oldFinishedCount;
-        oldBadge.classList.toggle('hidden', oldFinishedCount === 0);
+        oldBadge.textContent = oldPendingCount;
+        oldBadge.classList.toggle('hidden', oldPendingCount === 0);
     }
 
-    const remainingCount = state.todos.filter(t => !t.completed).length + oldFinishedCount;
-    listTotalStats.textContent = `${remainingCount} item${remainingCount !== 1 ? 's' : ''} remaining`;
+    const completedToday = state.todos.filter(t => t.completed).length;
+    const totalToday = state.todos.length;
+    listTotalStats.textContent = `Complete ${completedToday}/${totalToday} · ${oldPendingCount}`;
 }
 
 function renderList(todos, container, isOld) {

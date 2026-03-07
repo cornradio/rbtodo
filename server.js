@@ -1,6 +1,8 @@
 import express from 'express';
 import multer from 'multer';
+import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid'; // Need to install uuid
 import {
     getTodosForDate,
@@ -15,11 +17,86 @@ import {
     getAllTodos
 } from './data-manager.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = __dirname;
+
+function parseCliArgs(argv) {
+    const args = {
+        port: process.env.PORT,
+        iconPath: process.env.TODO_ICON,
+        title: process.env.TODO_TITLE
+    };
+
+    for (let i = 0; i < argv.length; i += 1) {
+        const current = argv[i];
+        const next = argv[i + 1];
+
+        if (current === '--port' || current === '-p') {
+            args.port = next;
+            i += 1;
+            continue;
+        }
+        if (current.startsWith('--port=')) {
+            args.port = current.split('=')[1];
+            continue;
+        }
+
+        if (current === '--icon' || current === '-i') {
+            args.iconPath = next;
+            i += 1;
+            continue;
+        }
+        if (current.startsWith('--icon=')) {
+            args.iconPath = current.split('=')[1];
+            continue;
+        }
+
+        if (current === '--title' || current === '-t') {
+            args.title = next;
+            i += 1;
+            continue;
+        }
+        if (current.startsWith('--title=')) {
+            args.title = current.split('=')[1];
+            continue;
+        }
+    }
+
+    return args;
+}
+
+function resolveIconPath(iconPathFromArgs) {
+    const defaultIcon = path.join(projectRoot, 'public', 'icon.png');
+    if (!iconPathFromArgs) return defaultIcon;
+
+    const resolved = path.resolve(process.cwd(), iconPathFromArgs);
+    if (!fs.existsSync(resolved)) {
+        console.warn(`[icon] file not found: ${resolved}. Fallback to default public/icon.png`);
+        return defaultIcon;
+    }
+    return resolved;
+}
+
+const cli = parseCliArgs(process.argv.slice(2));
 const app = express();
-const port = Number(process.env.PORT) || 3000;
+const parsedPort = Number(cli.port);
+const port = Number.isInteger(parsedPort) && parsedPort > 0 ? parsedPort : 3000;
+const iconPath = resolveIconPath(cli.iconPath);
+const appTitle = cli.title?.trim() || 'RB Todo - Minimalist Productivity';
+const appShortTitle = appTitle.length > 30 ? appTitle.slice(0, 30).trim() : appTitle;
 
 // Middleware
 app.use(express.json());
+app.get('/icon.png', (req, res) => {
+    res.sendFile(iconPath);
+});
+app.get('/api/app-config', (req, res) => {
+    res.json({
+        title: appTitle,
+        shortTitle: appShortTitle
+    });
+});
 app.use(express.static('public'));
 app.use('/uploads', express.static('uploads'));
 
@@ -205,4 +282,10 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 
 app.listen(port, () => {
     console.log(`Todo server running at http://localhost:${port}`);
+    if (cli.iconPath) {
+        console.log(`Using custom icon: ${iconPath}`);
+    }
+    if (cli.title) {
+        console.log(`Using custom title: ${appTitle}`);
+    }
 });

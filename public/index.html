@@ -34,7 +34,7 @@
             <button id="mobile-menu-btn" class="icon-btn">☰</button>
             <div class="mobile-app-title">
                 <img src="icon.png" alt="RB" class="mobile-logo">
-                <span>RB Todo</span>
+                <span id="mobile-app-title-text">RB Todo</span>
             </div>
             <button id="mobile-search-btn" class="icon-btn">🔍</button>
         </header>
@@ -163,7 +163,7 @@
                     placeholder="Start typing content here..."></div>
 
                 <div class="editor-toolbar">
-                    <div class="toolbar-group">
+                    <div class="toolbar-group toolbar-left">
                         <div class="toolbar-subgroup color-buttons">
                             <button class="toolbar-btn color-red" data-command="foreColor" data-value="#ff3b30"
                                 title="Red Text">A</button>
@@ -183,16 +183,12 @@
                         <span class="toolbar-divider"></span>
                         <button class="toolbar-btn color-clear" data-command="resetTextStyle" data-value="default"
                             title="Reset Color + Font Size">A0</button>
-                    </div>
-                    <div class="toolbar-group">
-                        <div class="apple-switch-wrapper" title="Client-side Image Compression">
-                            <span class="toolbar-label">🗜️</span>
-                            <div class="apple-switch" id="compression-toggle">
-                                <div class="apple-switch-handle"></div>
-                            </div>
-                        </div>
+                        <button id="create-link-btn" class="toolbar-btn" title="Insert Link (Ctrl+L)">🔗</button>
+                        <button class="toolbar-btn" data-command="insertUnorderedList" title="Bullet List">•</button>
                         <button id="insert-image-btn" class="toolbar-btn" title="Insert Images">🖼️</button>
                         <input type="file" id="image-upload" accept="image/*" multiple style="display: none;">
+                    </div>
+                    <div class="toolbar-group toolbar-right">
                         <button id="copy-html-btn" class="toolbar-btn" title="Copy as HTML (with images)">📋
                             HTML</button>
                     </div>
@@ -204,6 +200,12 @@
                         <input type="date" id="todo-date-picker" class="hidden-picker">
                         <span id="note-word-count" class="note-stats">0 chars</span>
                         <span id="note-pic-count" class="note-stats">0 pics</span>
+                        <div class="apple-switch-wrapper compression-status" title="Client-side Image Compression">
+                            <span class="toolbar-label">🗜️</span>
+                            <div class="apple-switch" id="compression-toggle">
+                                <div class="apple-switch-handle"></div>
+                            </div>
+                        </div>
                     </div>
                     <div class="footer-right">
                         <button id="manual-reload" class="icon-btn reload-btn"

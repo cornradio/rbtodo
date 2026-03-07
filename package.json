@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "node smoke-test.js",
-    "package": "node package-app.mjs"
+    "package": "node package-app.mjs",
+    "start": "node server.js"
   },
   "keywords": [],
   "author": "",
