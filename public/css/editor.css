@@ -146,6 +146,24 @@
     padding: 2px 4px;
 }
 
+.color-red {
+    color: #ff3b30 !important;
+}
+
+.color-green {
+    color: #34c759 !important;
+}
+
+.color-clear {
+    color: var(--text-color) !important;
+    font-weight: bold;
+}
+
+.color-picker-trigger {
+    font-size: 0.8rem;
+    position: relative;
+}
+
 .toolbar-divider {
     width: 1px;
     height: 16px;
@@ -471,4 +489,30 @@
     .content-editor {
         font-size: 1rem;
     }
+}
+
+/* Image Resize Handle (External to content-editor) */
+.img-resize-handle {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    background-color: var(--accent-color);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    cursor: nwse-resize;
+    z-index: 5000;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    display: none;
+    pointer-events: auto;
+}
+
+.content-editor img {
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+    user-select: none;
+    position: relative;
+}
+
+.content-editor img:hover {
+    box-shadow: 0 0 0 3px var(--accent-color);
 }

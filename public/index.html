@@ -162,15 +162,16 @@
 
                 <div class="editor-toolbar">
                     <div class="toolbar-group">
-                        <div class="toolbar-subgroup color-buttons">
+                         <div class="toolbar-subgroup color-buttons">
                             <button class="toolbar-btn color-red" data-command="foreColor" data-value="#ff3b30"
                                 title="Red Text">A</button>
-                            <button class="toolbar-btn color-blue" data-command="foreColor" data-value="#007aff"
-                                title="Blue Text">A</button>
                             <button class="toolbar-btn color-green" data-command="foreColor" data-value="#34c759"
                                 title="Green Text">A</button>
                             <button class="toolbar-btn color-clear" data-command="foreColor" data-value="clear"
-                                title="Clear Color">A</button>
+                                title="Original Color">A0</button>
+                            <button class="toolbar-btn color-picker-trigger" id="color-picker-btn" title="Custom Color">🌈
+                                <input type="color" id="custom-color-picker" style="position:absolute; opacity:0; pointer-events:none; left:0; width:100%;">
+                            </button>
                         </div>
                         <span class="toolbar-divider"></span>
                         <button class="toolbar-btn" data-command="fontSize" data-value="increase"
@@ -180,6 +181,7 @@
                         <button class="toolbar-btn" data-command="fontSize" data-value="decrease"
                             title="Decrease Font Size">A-</button>
                         <span class="toolbar-divider"></span>
+                        <button class="toolbar-btn" id="create-link-btn" title="Insert Link (Ctrl+L)">🔗</button>
                         <button class="toolbar-btn" data-command="insertUnorderedList" title="Unordered List">•</button>
                     </div>
                     <div class="toolbar-group">

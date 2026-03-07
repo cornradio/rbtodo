@@ -79,6 +79,7 @@ async function init() {
     await loadTodos();
     checkPrefersColorScheme();
     initResizer();
+    setupImageResizing();
 }
 
 function registerServiceWorker() {
@@ -225,6 +226,21 @@ function setupEventListeners() {
         });
     });
 
+    // Custom Color Picker
+    const colorPickerTrigger = document.getElementById('color-picker-btn');
+    const colorInput = document.getElementById('custom-color-picker');
+    colorPickerTrigger?.addEventListener('click', (e) => {
+        if (e.target !== colorInput) {
+            colorInput.click();
+        }
+    });
+    colorInput?.addEventListener('input', (e) => {
+        handleToolbarAction('foreColor', e.target.value);
+    });
+
+    // Link Creation
+    document.getElementById('create-link-btn')?.addEventListener('click', createLink);
+
     document.getElementById('copy-html-btn').addEventListener('click', copyAsHtml);
 
     // Date Picker for Todo
@@ -355,6 +371,14 @@ function setupKeyboardShortcuts() {
                 exportModal.classList.add('hidden');
             } else if (!editorPane.classList.contains('hidden-right') && !editorPane.classList.contains('hidden')) {
                 closeEditor();
+            }
+        }
+
+        // Ctrl + L: Insert Link
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
+            if (!editorSection.classList.contains('hidden')) {
+                e.preventDefault();
+                createLink();
             }
         }
     });
@@ -1322,6 +1346,7 @@ function prevLightboxImage() {
     openLightbox(prevIdx);
 }
 
+
 function openImageList() {
     const allImgs = Array.from(contentEditor.querySelectorAll('img')).map(img => img.src);
     state.activeNoteImages = allImgs;
@@ -1344,6 +1369,84 @@ function openImageList() {
     }
 
     imageListModal.classList.remove('hidden');
+}
+
+// --- Image Resizing Logic ---
+let activeResizingImg = null;
+let resizeHandle = null;
+
+function setupImageResizing() {
+    if (!resizeHandle) {
+        resizeHandle = document.createElement('div');
+        resizeHandle.className = 'img-resize-handle';
+        document.body.appendChild(resizeHandle);
+    }
+
+    contentEditor.addEventListener('mouseover', (e) => {
+        if (e.target.tagName === 'IMG' && !activeResizingImg) positionHandle(e.target);
+    });
+
+    contentEditor.addEventListener('mousemove', (e) => {
+        if (e.target.tagName === 'IMG' && !activeResizingImg) positionHandle(e.target);
+    });
+
+    window.addEventListener('mouseover', (e) => {
+        if (e.target.tagName !== 'IMG' && e.target !== resizeHandle && !activeResizingImg) {
+            resizeHandle.style.display = 'none';
+        }
+    });
+
+    function positionHandle(img) {
+        const rect = img.getBoundingClientRect();
+        resizeHandle.style.display = 'block';
+        resizeHandle.style.left = `${rect.right + window.scrollX - 7}px`;
+        resizeHandle.style.top = `${rect.bottom + window.scrollY - 7}px`;
+        resizeHandle.targetImg = img;
+    }
+
+    let startX, startWidth;
+    resizeHandle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        activeResizingImg = resizeHandle.targetImg;
+        startX = e.clientX;
+        startWidth = activeResizingImg.clientWidth;
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    });
+
+    function handleMouseMove(e) {
+        if (!activeResizingImg) return;
+        const newWidth = startWidth + (e.clientX - startX);
+        if (newWidth > 30) {
+            activeResizingImg.style.width = `${newWidth}px`;
+            activeResizingImg.style.height = 'auto';
+            positionHandle(activeResizingImg);
+        }
+    }
+
+    function handleMouseUp() {
+        if (activeResizingImg) {
+            autoSave();
+            activeResizingImg = null;
+        }
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+    }
+}
+
+function createLink() {
+    const url = prompt("Enter the URL (e.g., https://example.com):");
+    if (url) {
+        document.execCommand('createLink', false, url.startsWith('http') ? url : 'https://' + url);
+        // Ensure link opens in new tab
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+            const container = selection.getRangeAt(0).commonAncestorContainer;
+            const parent = container.nodeType === 3 ? container.parentNode : container;
+            const link = parent.closest('a');
+            if (link) link.target = "_blank";
+        }
+    }
 }
 
 // Start
