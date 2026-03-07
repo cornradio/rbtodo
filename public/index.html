@@ -76,7 +76,6 @@
                 <div class="sidebar-section">
                     <div class="sidebar-section-header">
                         <div class="sidebar-section-title">TIMELINE</div>
-                        <button id="export-week-btn" class="export-btn">Export</button>
                     </div>
                     <div id="timeline" class="timeline-container">
                         <!-- Timeline items will be injected here -->
@@ -170,10 +169,8 @@
                                 title="Red Text">A</button>
                             <button class="toolbar-btn color-green" data-command="foreColor" data-value="#34c759"
                                 title="Green Text">A</button>
-                            <button class="toolbar-btn color-clear" data-command="foreColor" data-value="clear"
-                                title="Original Color">A0</button>
-                            <button class="toolbar-btn color-picker-trigger" id="color-picker-btn"
-                                title="Custom Color">🌈
+                            <button class="toolbar-btn color-picker-trigger color-rainbow" id="color-picker-btn"
+                                title="Custom Color">A
                                 <input type="color" id="custom-color-picker"
                                     style="position:absolute; opacity:0; pointer-events:none; left:0; width:100%;">
                             </button>
@@ -181,13 +178,11 @@
                         <span class="toolbar-divider"></span>
                         <button class="toolbar-btn" data-command="fontSize" data-value="increase"
                             title="Increase Font Size">A+</button>
-                        <button class="toolbar-btn" data-command="fontSize" data-value="reset"
-                            title="Original Font Size">A0</button>
                         <button class="toolbar-btn" data-command="fontSize" data-value="decrease"
                             title="Decrease Font Size">A-</button>
                         <span class="toolbar-divider"></span>
-                        <button class="toolbar-btn" id="create-link-btn" title="Insert Link (Ctrl+L)">🔗</button>
-                        <button class="toolbar-btn" data-command="insertUnorderedList" title="Unordered List">•</button>
+                        <button class="toolbar-btn color-clear" data-command="resetTextStyle" data-value="default"
+                            title="Reset Color + Font Size">A0</button>
                     </div>
                     <div class="toolbar-group">
                         <div class="apple-switch-wrapper" title="Client-side Image Compression">

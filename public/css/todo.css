@@ -83,10 +83,61 @@
     gap: 2px;
 }
 
+.all-week-group {
+    margin-bottom: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--todo-item-bg);
+}
+
+.all-week-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--todo-item-hover);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.all-week-range {
+    font-family: var(--font-heading);
+    font-size: 0.76rem;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+}
+
+.all-week-count {
+    font-size: 0.75rem;
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+.all-week-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.week-export-btn {
+    border: 1px solid var(--border-color);
+    background: var(--sidebar-bg);
+    color: var(--text-secondary);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    cursor: pointer;
+}
+
+.week-export-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
 .todo-item {
     background-color: transparent;
     border: none;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: none;
     border-radius: 0;
     padding: 8px 12px;
     display: flex;
@@ -124,24 +175,6 @@
 }
 
 /* Connection line to notes top */
-.todo-item.active::after {
-    content: '';
-    position: absolute;
-    right: -40px;
-    /* Matches .todo-list-content padding-right */
-    top: 50%;
-    height: 2000px;
-    /* Reaches far up */
-    width: 41px;
-    /* Slightly overlap editor border */
-    border-top: 1.5px solid var(--accent-color);
-    border-right: 1.5px solid var(--accent-color);
-    transform: translateY(-100%);
-    opacity: 0.4;
-    pointer-events: none;
-    z-index: 1;
-}
-
 .todo-item.drag-over {
     border-top: 2px solid var(--accent-color);
 }
@@ -231,4 +264,5 @@
     .section-header h2 {
         font-size: 0.8rem;
     }
+
 }

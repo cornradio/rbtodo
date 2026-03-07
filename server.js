@@ -16,7 +16,7 @@ import {
 } from './data-manager.js';
 
 const app = express();
-const port = 3000;
+const port = Number(process.env.PORT) || 3000;
 
 // Middleware
 app.use(express.json());

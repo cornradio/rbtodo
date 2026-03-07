@@ -60,7 +60,6 @@ const exportModal = document.getElementById('export-modal');
 const exportTextarea = document.getElementById('export-textarea');
 const closeExportBtn = document.getElementById('close-export');
 const copyExportBtn = document.getElementById('copy-export');
-const exportWeekBtn = document.getElementById('export-week-btn');
 
 const lightboxModal = document.getElementById('lightbox-modal');
 const lightboxImg = document.getElementById('lightbox-img');
@@ -238,7 +237,6 @@ function setupEventListeners() {
     });
 
     // Export
-    exportWeekBtn.addEventListener('click', handleExport);
     closeExportBtn.addEventListener('click', () => exportModal.classList.add('hidden'));
     copyExportBtn.addEventListener('click', () => {
         exportTextarea.select();
@@ -429,7 +427,7 @@ function setupKeyboardShortcuts() {
             if (!editorSection.classList.contains('hidden')) {
                 e.preventDefault();
                 if (e.shiftKey) {
-                    handleToolbarAction('foreColor', 'clear');
+                    handleToolbarAction('resetTextStyle', 'default');
                 } else {
                     document.getElementById('custom-color-picker')?.click();
                 }
@@ -721,7 +719,7 @@ window.goToday = () => {
 
 function renderTodoLists() {
     if (state.isAllTasksView) {
-        renderList(state.allTodos, allTodosEl, false);
+        renderAllTasksByWeek(state.allTodos, allTodosEl);
         oldTodosSection.classList.add('hidden');
         todayTodosSection.classList.add('hidden');
         allTodosSection.classList.remove('hidden');
@@ -821,6 +819,68 @@ function renderList(todos, container, isOld) {
     // Drag & Drop Containers DISABLED
 }
 
+function renderAllTasksByWeek(todos, container) {
+    container.innerHTML = '';
+    if (todos.length === 0) {
+        container.innerHTML = '<p style="font-size:0.85rem; opacity:0.5; padding:10px;">No todos here.</p>';
+        return;
+    }
+
+    const sorted = [...todos].sort((a, b) => {
+        const aTime = dayjs(a.date || a.createdAt || 0).valueOf();
+        const bTime = dayjs(b.date || b.createdAt || 0).valueOf();
+        if (aTime !== bTime) return bTime - aTime;
+        return (a.order || 0) - (b.order || 0);
+    });
+
+    const grouped = new Map();
+    for (const todo of sorted) {
+        const d = dayjs(todo.date || todo.createdAt);
+        const weekStart = d.startOf('isoWeek');
+        const key = weekStart.format('YYYY-MM-DD');
+        if (!grouped.has(key)) {
+            grouped.set(key, {
+                start: weekStart,
+                end: weekStart.add(6, 'day'),
+                todos: []
+            });
+        }
+        grouped.get(key).todos.push(todo);
+    }
+
+    for (const group of grouped.values()) {
+        const section = document.createElement('section');
+        section.className = 'all-week-group';
+
+        const header = document.createElement('header');
+        header.className = 'all-week-header';
+        const left = document.createElement('span');
+        left.className = 'all-week-range';
+        left.textContent = `${group.start.format('YYYY-MM-DD')} ~ ${group.end.format('MM-DD')}`;
+
+        const right = document.createElement('div');
+        right.className = 'all-week-actions';
+        right.innerHTML = `<span class="all-week-count">${group.todos.length} items</span>`;
+
+        const exportBtn = document.createElement('button');
+        exportBtn.className = 'week-export-btn';
+        exportBtn.textContent = 'Export';
+        exportBtn.addEventListener('click', () => handleExport(group.start.format('YYYY-MM-DD')));
+
+        right.appendChild(exportBtn);
+        header.appendChild(left);
+        header.appendChild(right);
+        section.appendChild(header);
+
+        const list = document.createElement('div');
+        list.className = 'todo-items-container';
+        renderList(group.todos, list, false);
+        section.appendChild(list);
+
+        container.appendChild(section);
+    }
+}
+
 // --- Drag & Drop Handlers ---
 let draggedItem = null;
 
@@ -874,12 +934,12 @@ function toggleFullscreen() {
     fullscreenBtn.textContent = state.isFullscreen ? '❐' : '⛶';
 }
 
-async function handleExport() {
+async function handleExport(targetDate = state.selectedDate) {
     try {
-        const res = await fetch(`/api/export?date=${state.selectedDate}`);
+        const res = await fetch(`/api/export?date=${targetDate}`);
         const data = await res.json();
 
-        let text = `# Weekly Summary (${dayjs(state.selectedDate).startOf('isoWeek').format('YYYY-MM-DD')} to ${dayjs(state.selectedDate).endOf('isoWeek').format('YYYY-MM-DD')})\n\n`;
+        let text = `# Weekly Summary (${dayjs(targetDate).startOf('isoWeek').format('YYYY-MM-DD')} to ${dayjs(targetDate).endOf('isoWeek').format('YYYY-MM-DD')})\n\n`;
 
         const sortedDates = Object.keys(data).sort();
         sortedDates.forEach(date => {
@@ -1614,15 +1674,14 @@ function updateNoteStats() {
 
 function handleToolbarAction(command, value) {
     if (command === 'fontSize') {
-        if (value === 'reset') {
-            document.execCommand('fontSize', false, "3"); // Default size
-        } else {
-            const current = document.queryCommandValue('fontSize') || "3";
-            let newSize = parseInt(current);
-            if (value === 'increase' && newSize < 7) newSize++;
-            if (value === 'decrease' && newSize > 1) newSize--;
-            document.execCommand('fontSize', false, newSize);
-        }
+        const current = parseInt(document.queryCommandValue('fontSize'), 10) || 3;
+        let newSize = current;
+        if (value === 'increase' && current < 7) newSize = current + 1;
+        if (value === 'decrease' && current > 1) newSize = current - 1;
+        document.execCommand('fontSize', false, String(newSize));
+    } else if (command === 'resetTextStyle') {
+        // Reset style back to editor defaults.
+        document.execCommand('removeFormat', false, null);
     } else if (command === 'foreColor' && value === 'clear') {
         document.execCommand('removeFormat', false, null);
     } else {

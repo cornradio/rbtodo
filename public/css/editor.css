@@ -185,6 +185,13 @@
     position: relative;
 }
 
+.color-rainbow {
+    background: linear-gradient(90deg, #ff3b30, #ffcc00, #34c759, #0a84ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important;
+}
+
 .toolbar-divider {
     width: 1px;
     height: 16px;
