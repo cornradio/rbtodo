@@ -13,6 +13,16 @@
     position: relative;
 }
 
+/* Custom Selection style to preserve text visibility */
+::selection {
+    background: rgba(255, 179, 0, 0.35) !important;
+    color: inherit !important;
+}
+
+.content-editor *::selection {
+    background: rgba(255, 179, 0, 0.35) !important;
+}
+
 /* Slide out to the right */
 .editor-section.hidden-right {
     margin-right: -50vw;
@@ -263,6 +273,7 @@
     overflow-y: auto;
     padding-bottom: 20px;
     min-height: 0;
+    caret-color: var(--accent-color);
 }
 
 .content-editor ul {

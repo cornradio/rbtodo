@@ -381,6 +381,18 @@ function setupKeyboardShortcuts() {
                 createLink();
             }
         }
+
+        // Ctrl + Q: Open Color Picker / Reset Color
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'q') {
+            if (!editorSection.classList.contains('hidden')) {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    handleToolbarAction('foreColor', 'clear');
+                } else {
+                    document.getElementById('custom-color-picker')?.click();
+                }
+            }
+        }
     });
 }
 
