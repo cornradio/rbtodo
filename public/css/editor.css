@@ -321,13 +321,13 @@
 .editor-footer-container {
     flex-shrink: 0;
     padding: 8px 20px;
-    /* More compact, like the todo list footer */
     background-color: var(--sidebar-bg);
     border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
     min-height: 48px;
+    gap: 12px;
 }
 
 .editor-footer-actions {
@@ -339,8 +339,9 @@
 .footer-left {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     position: relative;
+    flex-wrap: wrap;
 }
 
 .footer-left .note-stats {
@@ -348,7 +349,7 @@
 }
 
 .compression-status {
-    margin-left: 4px;
+    margin-left: 2px;
     padding: 0;
 }
 
@@ -411,14 +412,19 @@
 .footer-right {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
 }
 
 .note-stats {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--text-secondary);
-    margin-right: 20px;
-    font-weight: 500;
+    margin-right: 0;
+    font-weight: 600;
+    background: var(--todo-item-hover);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    padding: 2px 8px;
+    line-height: 1.4;
 }
 
 .waiting-stat {
@@ -481,7 +487,8 @@
 
 .clickable-date:hover {
     color: var(--accent-color);
-    text-decoration: underline;
+    text-decoration: none;
+    border-color: var(--accent-color);
 }
 
 
@@ -492,7 +499,8 @@
 
 #note-pic-count:hover {
     color: var(--accent-color);
-    text-decoration: underline;
+    text-decoration: none;
+    border-color: var(--accent-color);
 }
 
 .reload-btn {
@@ -539,19 +547,59 @@
 }
 
 .save-status-box {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    background: var(--todo-item-hover);
-    padding: 4px 10px;
-    border-radius: 6px;
-    min-width: 60px;
-    text-align: center;
-    transition: all 0.3s ease;
+    width: 10px;
+    height: 10px;
+    min-width: 10px;
+    border-radius: 50%;
+    background: #9aa0a6;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    position: relative;
 }
 
-.save-status-box.saving {
-    color: var(--accent-color);
-    background: rgba(0, 122, 255, 0.1);
+.save-status-box span {
+    display: none;
+}
+
+.save-status-box.status-idle {
+    background: #9aa0a6;
+}
+
+.save-status-box.status-saving,
+.save-status-box.status-success {
+    background: #34c759;
+}
+
+.save-status-box.status-error {
+    background: #ff3b30;
+}
+
+.save-status-box.status-conflict {
+    background: #ff9f0a;
+}
+
+.save-status-box.status-pulse {
+    animation: statusPulse 0.7s ease;
+}
+
+@keyframes statusPulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.4);
+    }
+
+    55% {
+        transform: scale(1.22);
+        box-shadow: 0 0 0 8px rgba(52, 199, 89, 0);
+    }
+
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(52, 199, 89, 0);
+    }
+}
+
+.dark-mode .save-status-box.status-idle {
+    background: #666b72;
 }
 
 .text-btn {

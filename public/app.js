@@ -85,6 +85,54 @@ const saveQueueByTodoId = new Map();
 const imageUploadInput = document.getElementById('image-upload');
 const insertImageBtn = document.getElementById('insert-image-btn');
 let lastEditorRange = null;
+const statusPulseTimers = { editor: null, list: null };
+
+function setSaveIndicators(status = 'idle', { flash = false, target = 'both' } = {}) {
+    const targets = [];
+    if ((target === 'both' || target === 'editor') && saveStatus?.parentElement) {
+        targets.push({ key: 'editor', box: saveStatus.parentElement, label: saveStatus });
+    }
+    if ((target === 'both' || target === 'list') && listSaveStatus?.parentElement) {
+        targets.push({ key: 'list', box: listSaveStatus.parentElement, label: listSaveStatus });
+    }
+
+    const classByStatus = {
+        idle: 'status-idle',
+        saving: 'status-saving',
+        success: 'status-success',
+        error: 'status-error',
+        conflict: 'status-conflict'
+    };
+    const labelByStatus = {
+        idle: 'Idle',
+        saving: 'Saving',
+        success: 'Saved',
+        error: 'Error',
+        conflict: 'Conflict merged'
+    };
+
+    targets.forEach(({ key, box, label }) => {
+        box.classList.remove('status-idle', 'status-saving', 'status-success', 'status-error', 'status-conflict', 'status-pulse');
+        box.classList.add(classByStatus[status] || 'status-idle');
+        if (label) label.textContent = labelByStatus[status] || 'Idle';
+
+        if (statusPulseTimers[key]) {
+            clearTimeout(statusPulseTimers[key]);
+            statusPulseTimers[key] = null;
+        }
+
+        if (flash) {
+            box.classList.add('status-pulse');
+            statusPulseTimers[key] = setTimeout(() => {
+                box.classList.remove('status-pulse');
+                box.classList.remove('status-success');
+                box.classList.add('status-idle');
+                if (label) label.textContent = 'Idle';
+                statusPulseTimers[key] = null;
+            }, 700);
+        }
+    });
+}
 
 // --- Initialization ---
 async function init() {
@@ -334,7 +382,7 @@ function setupEventListeners() {
 
             selectDate(newDate);
             openTodo(todo);
-            saveStatus.textContent = 'Moved';
+            setSaveIndicators('success', { flash: true, target: 'editor' });
         }
     });
 
@@ -543,13 +591,7 @@ function getTodoSaveQueue(todoId) {
 
 async function performTodoSave(todo) {
     if (state.isReadOnly) return;
-    const statusBox = saveStatus.parentElement;
-    const listStatusBox = listSaveStatus.parentElement;
-
-    saveStatus.textContent = 'Saving...';
-    listSaveStatus.textContent = 'Saving...';
-    statusBox.classList.add('saving');
-    listStatusBox.classList.add('saving');
+    setSaveIndicators('saving');
 
     const startTime = Date.now();
     try {
@@ -573,8 +615,7 @@ async function performTodoSave(todo) {
 
         if (result.status === 'conflict_merged') {
             // A conflict occurred and was merged on the server
-            saveStatus.textContent = 'Conflict Merged';
-            listSaveStatus.textContent = 'Conflict Merged';
+            setSaveIndicators('conflict');
 
             // Update local state with the merged content and new timestamp
             state.selectedTodo.content = result.mergedContent;
@@ -588,24 +629,18 @@ async function performTodoSave(todo) {
 
             alert('Note clash! Someone else edited this note. We\'ve kept both versions - see the bottom of the note for the conflicting content.');
         } else {
-            saveStatus.textContent = 'Saved';
-            listSaveStatus.textContent = 'Saved';
+            setSaveIndicators('success', { flash: true });
             if (result.updatedAt) {
                 todo.updatedAt = result.updatedAt;
             }
         }
-        statusBox.classList.remove('saving');
-        listStatusBox.classList.remove('saving');
 
         await fetchHighlightedDates();
         await fetchTimelineStats();
         renderTimeline();
         renderCalendar();
     } catch (e) {
-        saveStatus.textContent = 'Error';
-        listSaveStatus.textContent = 'Error';
-        statusBox.classList.remove('saving');
-        listStatusBox.classList.remove('saving');
+        setSaveIndicators('error');
         console.error(e);
     }
 }
@@ -639,16 +674,16 @@ async function saveTodoData(todo) {
 }
 
 async function saveTodosOrder(date, todos) {
-    saveStatus.textContent = 'Saving order...';
+    setSaveIndicators('saving', { target: 'editor' });
     try {
         await fetch('/api/todos/order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ date, todos })
         });
-        saveStatus.textContent = 'Saved';
+        setSaveIndicators('success', { flash: true, target: 'editor' });
     } catch (e) {
-        saveStatus.textContent = 'Error';
+        setSaveIndicators('error', { target: 'editor' });
         console.error(e);
     }
 }
@@ -743,7 +778,7 @@ function renderTodoLists() {
         todayTodosSection.classList.add('hidden');
         allTodosSection.classList.remove('hidden');
 
-        listTotalStats.textContent = `${state.allTodos.length} items total`;
+        listTotalStats.textContent = 'All tasks';
         return;
     }
 
@@ -762,7 +797,7 @@ function renderTodoLists() {
 
     const completedToday = state.todos.filter(t => t.completed).length;
     const totalToday = state.todos.length;
-    listTotalStats.textContent = `Complete ${completedToday}/${totalToday} · ${oldPendingCount}`;
+    listTotalStats.textContent = `${completedToday}/${totalToday} · ${oldPendingCount}`;
 }
 
 function renderList(todos, container, isOld) {
@@ -1365,12 +1400,11 @@ async function manualReloadTodo() {
             titleInput.value = updatedTodo.title || '';
             contentEditor.innerHTML = updatedTodo.content || '';
             updateNoteStats();
-            saveStatus.textContent = 'Reloaded';
-            setTimeout(() => saveStatus.textContent = 'Saved', 2000);
+            setSaveIndicators('success', { flash: true, target: 'editor' });
         }
     } catch (e) {
         console.error(e);
-        saveStatus.textContent = 'Reload error';
+        setSaveIndicators('error', { target: 'editor' });
     } finally {
         setTimeout(() => manualReloadBtn.classList.remove('spinning'), 600);
     }
@@ -1479,7 +1513,7 @@ async function uploadAndInsertImage(file) {
 
     if (state.isCompressionEnabled && file.type.startsWith('image/')) {
         try {
-            saveStatus.textContent = 'Compressing...';
+            setSaveIndicators('saving', { target: 'editor' });
             fileToUpload = await compressImage(file);
         } catch (err) {
             console.warn('Compression failed, uploading original.', err);
@@ -1490,7 +1524,7 @@ async function uploadAndInsertImage(file) {
     formData.append('image', fileToUpload);
 
     try {
-        saveStatus.textContent = 'Uploading...';
+        setSaveIndicators('saving', { target: 'editor' });
         const res = await fetch('/api/upload', {
             method: 'POST',
             body: formData
@@ -1502,7 +1536,7 @@ async function uploadAndInsertImage(file) {
         autoSave();
     } catch (e) {
         console.error(e);
-        saveStatus.textContent = 'Upload failed';
+        setSaveIndicators('error', { target: 'editor' });
     }
 }
 
@@ -1666,14 +1700,7 @@ function linkify(element) {
 
 // --- Toolbar & Context Actions ---
 function updateNoteStats() {
-    const text = contentEditor.innerText || "";
-    const chars = text.length;
     const picCount = contentEditor.querySelectorAll('img').length;
-
-    const wordCountEl = document.getElementById('note-word-count');
-    if (wordCountEl) {
-        wordCountEl.textContent = `${chars} chars`;
-    }
 
     const picCountEl = document.getElementById('note-pic-count');
     if (picCountEl) {
@@ -1684,9 +1711,9 @@ function updateNoteStats() {
     if (noteDate && state.selectedTodo) {
         let dateStr = "";
         if (state.selectedTodo.createdAt) {
-            dateStr = dayjs(state.selectedTodo.createdAt).format('YYYY-MM-DD HH:mm');
+            dateStr = dayjs(state.selectedTodo.createdAt).format('YYYY-MM-DD');
         } else if (state.selectedTodo.date) {
-            dateStr = state.selectedTodo.date;
+            dateStr = dayjs(state.selectedTodo.date).format('YYYY-MM-DD');
         }
         noteDate.textContent = dateStr || '';
     }
