@@ -81,6 +81,10 @@ const manualReloadBtn = document.getElementById('manual-reload');
 const listManualReloadBtn = document.getElementById('list-manual-reload');
 const listSaveStatus = document.getElementById('list-save-status');
 const listTotalStats = document.getElementById('list-total-stats');
+const saveQueueByTodoId = new Map();
+const imageUploadInput = document.getElementById('image-upload');
+const insertImageBtn = document.getElementById('insert-image-btn');
+let lastEditorRange = null;
 
 // --- Initialization ---
 async function init() {
@@ -166,6 +170,9 @@ function setupEventListeners() {
             window.open(link.href, '_blank');
         }
     });
+    contentEditor.addEventListener('mouseup', saveEditorSelection);
+    contentEditor.addEventListener('keyup', saveEditorSelection);
+    contentEditor.addEventListener('focus', saveEditorSelection);
 
     // Drag & Drop image support
     contentEditor.addEventListener('dragover', (e) => {
@@ -183,7 +190,13 @@ function setupEventListeners() {
         }
     });
 
-    document.getElementById('image-upload').addEventListener('change', async (e) => {
+    insertImageBtn?.addEventListener('click', () => {
+        if (state.isReadOnly) return;
+        saveEditorSelection();
+        imageUploadInput?.click();
+    });
+
+    imageUploadInput?.addEventListener('change', async (e) => {
         const files = Array.from(e.target.files);
         for (const file of files) {
             await uploadAndInsertImage(file);
@@ -500,7 +513,18 @@ async function loadTodos() {
     } catch (e) { console.error(e); }
 }
 
-async function saveTodoData(todo) {
+function getTodoSaveQueue(todoId) {
+    if (!saveQueueByTodoId.has(todoId)) {
+        saveQueueByTodoId.set(todoId, {
+            inFlight: false,
+            pending: false,
+            promise: Promise.resolve()
+        });
+    }
+    return saveQueueByTodoId.get(todoId);
+}
+
+async function performTodoSave(todo) {
     if (state.isReadOnly) return;
     const statusBox = saveStatus.parentElement;
     const listStatusBox = listSaveStatus.parentElement;
@@ -567,6 +591,34 @@ async function saveTodoData(todo) {
         listStatusBox.classList.remove('saving');
         console.error(e);
     }
+}
+
+async function saveTodoData(todo) {
+    if (!todo?.id || state.isReadOnly) return;
+
+    const queue = getTodoSaveQueue(todo.id);
+    queue.pending = true;
+
+    if (queue.inFlight) {
+        return queue.promise;
+    }
+
+    queue.inFlight = true;
+    queue.promise = (async () => {
+        try {
+            while (queue.pending) {
+                queue.pending = false;
+                await performTodoSave(todo);
+            }
+        } finally {
+            queue.inFlight = false;
+            if (!queue.pending) {
+                saveQueueByTodoId.delete(todo.id);
+            }
+        }
+    })();
+
+    return queue.promise;
 }
 
 async function saveTodosOrder(date, todos) {
@@ -1356,11 +1408,59 @@ async function uploadAndInsertImage(file) {
         const data = await res.json();
 
         const imgHtml = `<img src="${data.url}" style="max-width: 100%; border-radius: 12px; margin: 15px 0;">`;
-        document.execCommand('insertHTML', false, imgHtml);
+        insertHtmlIntoEditor(imgHtml);
         autoSave();
     } catch (e) {
         console.error(e);
         saveStatus.textContent = 'Upload failed';
+    }
+}
+
+function saveEditorSelection() {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    if (contentEditor.contains(range.commonAncestorContainer)) {
+        lastEditorRange = range.cloneRange();
+    }
+}
+
+function restoreEditorSelection() {
+    contentEditor.focus();
+    const selection = window.getSelection();
+    if (!selection) return false;
+
+    if (lastEditorRange && contentEditor.contains(lastEditorRange.commonAncestorContainer)) {
+        selection.removeAllRanges();
+        selection.addRange(lastEditorRange);
+        return true;
+    }
+    return false;
+}
+
+function insertHtmlIntoEditor(html) {
+    restoreEditorSelection();
+    const selection = window.getSelection();
+    const range = (selection && selection.rangeCount > 0) ? selection.getRangeAt(0) : null;
+
+    if (range && contentEditor.contains(range.commonAncestorContainer)) {
+        range.deleteContents();
+        const fragment = range.createContextualFragment(html);
+        const lastNode = fragment.lastChild;
+        range.insertNode(fragment);
+
+        if (lastNode) {
+            range.setStartAfter(lastNode);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            lastEditorRange = range.cloneRange();
+        }
+        return;
+    }
+
+    if (!document.execCommand('insertHTML', false, html)) {
+        contentEditor.insertAdjacentHTML('beforeend', html);
     }
 }
 
