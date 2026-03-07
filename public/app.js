@@ -15,10 +15,21 @@ const state = {
     activeNoteImages: [],
     isCompressionEnabled: localStorage.getItem('img-compression') === 'true',
     lastSyncCheck: null,
-    sessionId: Math.random().toString(36).substring(2, 15),
+    sessionId: getSessionId(),
     isReadOnly: false,
-    lockHeartbeatInterval: null
+    lockHeartbeatInterval: null,
+    autoUnlockInterval: null,
+    lockDurationInterval: null
 };
+
+function getSessionId() {
+    let id = sessionStorage.getItem('todo_session_id');
+    if (!id) {
+        id = Math.random().toString(36).substring(2, 15);
+        sessionStorage.setItem('todo_session_id', id);
+    }
+    return id;
+}
 
 // --- DOM Elements ---
 const timelineEl = document.getElementById('timeline');
@@ -84,7 +95,15 @@ async function init() {
     checkPrefersColorScheme();
     initResizer();
     setupImageResizing();
-    startSyncCheck();
+
+    // Attempt to unlock on close
+    window.addEventListener('beforeunload', () => {
+        if (state.selectedTodo) {
+            const data = JSON.stringify({ id: state.selectedTodo.id, sessionId: state.sessionId });
+            const blob = new Blob([data], { type: 'application/json' });
+            navigator.sendBeacon('/api/unlock', blob);
+        }
+    });
 }
 
 function registerServiceWorker() {
@@ -129,6 +148,11 @@ function setupEventListeners() {
 
     // Paste image support
     contentEditor.addEventListener('paste', handlePaste);
+    contentEditor.addEventListener('input', debounce(() => {
+        console.log('Auto-saving due to input...');
+        autoSave();
+    }, 1500));
+
     contentEditor.addEventListener('blur', () => {
         linkify(contentEditor);
         autoSave();
@@ -836,9 +860,9 @@ function updateDateTitle() {
     const d = dayjs(state.selectedDate);
     const today = dayjs().format('YYYY-MM-DD');
     if (state.selectedDate === today) {
-        dateTitle.textContent = "TODAY'S TODOS";
+        dateTitle.textContent = "Today's Todos";
     } else {
-        dateTitle.textContent = `${d.format('MMM DD, YYYY')}'S TODOS`;
+        dateTitle.textContent = `${d.format('MMM DD, YYYY')}'s Todos`;
     }
 }
 
@@ -883,7 +907,7 @@ async function openTodo(todo) {
     // Request Lock
     const lockResult = await requestLock(todo.id);
     if (!lockResult.success) {
-        toggleReadOnly(true, lockResult.message);
+        toggleReadOnly(true, lockResult.message, lockResult.lockedAt);
     } else {
         toggleReadOnly(false);
         startLockHeartbeat(todo.id);
@@ -894,7 +918,7 @@ async function openTodo(todo) {
     updateNoteStats();
 }
 
-function toggleReadOnly(readOnly, message = '') {
+function toggleReadOnly(readOnly, message = '', lockedAt = null) {
     state.isReadOnly = readOnly;
     titleInput.readOnly = readOnly;
     contentEditor.contentEditable = !readOnly;
@@ -906,13 +930,93 @@ function toggleReadOnly(readOnly, message = '') {
             const warnEl = document.createElement('div');
             warnEl.id = 'lock-warning';
             warnEl.className = 'sync-warning-banner lock-warning';
-            warnEl.innerHTML = `<span>🔒 ${message}</span><button onclick="location.reload()">Refresh</button>`;
+            warnEl.innerHTML = `
+                <span class="lock-msg">🔒 ${message} <span id="lock-duration-text" style="opacity:0.8; font-size:0.8rem; margin-left:4px;"></span></span>
+                <button id="retry-lock-btn">Refresh Note</button>
+            `;
             document.querySelector('.editor-container').prepend(warnEl);
+            document.getElementById('retry-lock-btn').addEventListener('click', refreshCurrentNote);
         }
+
+        // Start duration timer
+        if (lockedAt) {
+            clearInterval(state.lockDurationInterval);
+            const updateDuration = () => {
+                const textEl = document.getElementById('lock-duration-text');
+                if (textEl) {
+                    textEl.textContent = `(${formatDuration(Date.now() - lockedAt)})`;
+                }
+            };
+            updateDuration();
+            state.lockDurationInterval = setInterval(updateDuration, 1000);
+        }
+
+        // Start auto-unlock check
+        startAutoUnlockCheck();
         editorPane.classList.add('read-only-mode');
     } else {
         warning?.remove();
         editorPane.classList.remove('read-only-mode');
+        clearInterval(state.lockDurationInterval);
+        stopAutoUnlockCheck();
+    }
+}
+
+function formatDuration(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+    }
+    return `${seconds}s`;
+}
+
+function startAutoUnlockCheck() {
+    stopAutoUnlockCheck();
+    state.autoUnlockInterval = setInterval(async () => {
+        if (!state.selectedTodo || !state.isReadOnly) {
+            stopAutoUnlockCheck();
+            return;
+        }
+
+        const res = await requestLock(state.selectedTodo.id);
+        if (res.success) {
+            // Lock acquired! Automatically refresh and unlock
+            refreshCurrentNote();
+        } else {
+            // Still locked. Let's pull the latest content to see progress
+            try {
+                const date = state.selectedTodo.date || state.selectedDate;
+                const getRes = await fetch(`/api/todos?date=${date}`);
+                const data = await getRes.json();
+                const serverTodo = data.todos?.find(t => t.id === state.selectedTodo.id);
+
+                if (serverTodo && serverTodo.updatedAt > (state.selectedTodo.updatedAt || 0)) {
+                    console.log('Progress detected! Updating content...');
+                    // Update content silently so we see progress
+                    state.selectedTodo = serverTodo;
+                    titleInput.value = serverTodo.title || '';
+                    contentEditor.innerHTML = serverTodo.content || '';
+                    linkify(contentEditor);
+                    updateNoteStats();
+                }
+            } catch (e) { }
+
+            if (res.lockedAt) {
+                const textEl = document.getElementById('lock-duration-text');
+                if (textEl) {
+                    textEl.textContent = `(${formatDuration(Date.now() - res.lockedAt)})`;
+                }
+            }
+        }
+    }, 4000); // Check every 4 seconds
+}
+
+function stopAutoUnlockCheck() {
+    if (state.autoUnlockInterval) {
+        clearInterval(state.autoUnlockInterval);
+        state.autoUnlockInterval = null;
     }
 }
 
@@ -952,15 +1056,85 @@ function startLockHeartbeat(todoId) {
             const result = await res.json();
             if (!result.success) {
                 toggleReadOnly(true, 'Your edit lock expired. Please refresh.');
+            } else {
+                updateWaitingIndicator(result.someoneWaiting);
             }
         } catch (e) { }
-    }, 15000);
+    }, 5000); // Check heartbeat more frequently (5s) for responsiveness
+}
+
+function updateWaitingIndicator(show) {
+    let indicator = document.getElementById('waiting-indicator');
+    const titleHeader = document.querySelector('.title-header');
+
+    if (show) {
+        if (!indicator && titleHeader) {
+            indicator = document.createElement('span');
+            indicator.id = 'waiting-indicator';
+            indicator.className = 'waiting-stat title-waiting-stat';
+            indicator.title = 'Someone else is waiting to edit this note...';
+            indicator.innerHTML = '👤<span class="pulse-dot"></span>';
+            titleHeader.appendChild(indicator);
+        }
+    } else {
+        indicator?.remove();
+    }
 }
 
 function stopLockHeartbeat() {
     if (state.lockHeartbeatInterval) {
         clearInterval(state.lockHeartbeatInterval);
         state.lockHeartbeatInterval = null;
+    }
+    document.getElementById('waiting-indicator')?.remove();
+}
+
+async function refreshCurrentNote() {
+    if (!state.selectedTodo) return;
+
+    const btn = document.getElementById('retry-lock-btn');
+    const originalContent = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading-spinner"></span> Refreshing...';
+
+    const id = state.selectedTodo.id;
+    const date = state.selectedTodo.date || state.selectedDate;
+
+    try {
+        // Minimum delay for animation visibility
+        const minWait = new Promise(resolve => setTimeout(resolve, 800));
+
+        const res = await fetch(`/api/todos?date=${date}`);
+        const data = await res.json();
+        const serverTodo = data.todos?.find(t => t.id === id);
+
+        await minWait;
+
+        if (serverTodo) {
+            // Re-open/Refresh the note UI
+            state.selectedTodo = serverTodo; // Update local state
+
+            titleInput.value = serverTodo.title || '';
+            contentEditor.innerHTML = serverTodo.content || '';
+            linkify(contentEditor);
+            updateNoteStats();
+
+            // Try to get lock again
+            const lockResult = await requestLock(id);
+            if (lockResult.success) {
+                toggleReadOnly(false);
+                startLockHeartbeat(id);
+            } else {
+                toggleReadOnly(true, lockResult.message);
+            }
+        }
+    } catch (e) {
+        console.error('Failed to refresh note:', e);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalContent;
+        }
     }
 }
 
@@ -1578,36 +1752,6 @@ function createLink() {
             if (link) link.target = "_blank";
         }
     }
-}
-
-// --- Sync & Conflict Prevention ---
-function startSyncCheck() {
-    setInterval(async () => {
-        if (!state.selectedTodo || !state.selectedTodo.id) return;
-
-        try {
-            const date = state.selectedTodo.date || state.selectedDate;
-            const res = await fetch(`/api/todos?date=${date}`);
-            const data = await res.json();
-
-            const serverTodo = data.todos?.find(t => t.id === state.selectedTodo.id);
-            if (serverTodo && serverTodo.updatedAt > (state.selectedTodo.updatedAt || 0)) {
-                // Someone updated it!
-                if (!document.getElementById('sync-warning')) {
-                    const warning = document.createElement('div');
-                    warning.id = 'sync-warning';
-                    warning.className = 'sync-warning-banner';
-                    warning.innerHTML = `
-                        <span>⚠️ This note has been updated by someone else.</span>
-                        <button onclick="location.reload()">Reload Page</button>
-                    `;
-                    document.querySelector('.editor-container').prepend(warning);
-                }
-            }
-        } catch (e) {
-            console.warn('Sync check failed:', e);
-        }
-    }, 15000); // Check every 15 seconds
 }
 
 // Start

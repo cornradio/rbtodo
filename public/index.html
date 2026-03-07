@@ -99,7 +99,7 @@
                     <header class="section-header collapsible-header collapsed-header" id="old-todos-header">
                         <div class="header-left">
                             <span class="collapse-icon">▼</span>
-                            <h2>OLD TODOS (UNFINISHED)</h2>
+                            <h2>OLD-TODO</h2>
                             <span id="old-todos-count" class="count-badge hidden">0</span>
                         </div>
                     </header>
@@ -155,22 +155,27 @@
                     <button id="fullscreen-editor" class="icon-btn" title="Full Screen (Ctrl+Shift+F)">⛶</button>
                     <button id="close-editor-top" class="icon-btn close-btn-top" title="Close">✕</button>
                 </div>
-                <input type="text" id="todo-title-input" placeholder="Todo Title..." class="title-input">
+                <div class="title-header">
+                    <input type="text" id="todo-title-input" placeholder="Todo Title..." class="title-input">
+                    <!-- Indicator injected here via JS -->
+                </div>
 
                 <div id="todo-content-editor" contenteditable="true" class="content-editor"
                     placeholder="Start typing content here..."></div>
 
                 <div class="editor-toolbar">
                     <div class="toolbar-group">
-                         <div class="toolbar-subgroup color-buttons">
+                        <div class="toolbar-subgroup color-buttons">
                             <button class="toolbar-btn color-red" data-command="foreColor" data-value="#ff3b30"
                                 title="Red Text">A</button>
                             <button class="toolbar-btn color-green" data-command="foreColor" data-value="#34c759"
                                 title="Green Text">A</button>
                             <button class="toolbar-btn color-clear" data-command="foreColor" data-value="clear"
                                 title="Original Color">A0</button>
-                            <button class="toolbar-btn color-picker-trigger" id="color-picker-btn" title="Custom Color">🌈
-                                <input type="color" id="custom-color-picker" style="position:absolute; opacity:0; pointer-events:none; left:0; width:100%;">
+                            <button class="toolbar-btn color-picker-trigger" id="color-picker-btn"
+                                title="Custom Color">🌈
+                                <input type="color" id="custom-color-picker"
+                                    style="position:absolute; opacity:0; pointer-events:none; left:0; width:100%;">
                             </button>
                         </div>
                         <span class="toolbar-divider"></span>

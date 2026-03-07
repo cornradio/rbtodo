@@ -34,8 +34,8 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // --- Edit Lock System ---
-const activeLocks = new Map(); // todoId -> { sessionId, updatedAt }
-const LOCK_TIMEOUT = 30000; // 30 seconds
+const activeLocks = new Map(); // todoId -> { sessionId, updatedAt, lockedAt, lastWaiterAt }
+const LOCK_TIMEOUT = 20000; // 20 seconds
 
 // Cleanup expired locks periodically
 setInterval(() => {
@@ -49,20 +49,34 @@ setInterval(() => {
 
 // API Endpoints
 app.post('/api/lock', (req, res) => {
+    if (!req.body) return res.status(400).json({ success: false, message: 'Missing body' });
     const { id, sessionId } = req.body;
+    if (!id || !sessionId) return res.status(400).json({ success: false, message: 'Missing id or sessionId' });
+
     const now = Date.now();
     const currentLock = activeLocks.get(id);
 
     if (currentLock && currentLock.sessionId !== sessionId) {
-        // Already locked by someone else
-        return res.json({ success: false, message: 'Someone else is editing this note right now.' });
+        // Already locked by someone else - Record that someone is waiting
+        currentLock.lastWaiterAt = now;
+        return res.json({
+            success: false,
+            message: 'Someone else is editing this note right now.',
+            lockedAt: currentLock.lockedAt
+        });
     }
 
-    activeLocks.set(id, { sessionId, updatedAt: now });
+    activeLocks.set(id, {
+        sessionId,
+        updatedAt: now,
+        lockedAt: currentLock ? currentLock.lockedAt : now,
+        lastWaiterAt: currentLock ? currentLock.lastWaiterAt : 0
+    });
     res.json({ success: true });
 });
 
 app.post('/api/unlock', (req, res) => {
+    if (!req.body) return res.json({ success: true });
     const { id, sessionId } = req.body;
     const currentLock = activeLocks.get(id);
     if (currentLock && currentLock.sessionId === sessionId) {
@@ -72,11 +86,16 @@ app.post('/api/unlock', (req, res) => {
 });
 
 app.post('/api/lock/heartbeat', (req, res) => {
+    if (!req.body) return res.status(400).json({ success: false });
     const { id, sessionId } = req.body;
+    const now = Date.now();
     const currentLock = activeLocks.get(id);
     if (currentLock && currentLock.sessionId === sessionId) {
-        activeLocks.set(id, { sessionId, updatedAt: Date.now() });
-        return res.json({ success: true });
+        currentLock.updatedAt = now;
+        return res.json({
+            success: true,
+            someoneWaiting: (now - (currentLock.lastWaiterAt || 0)) < 15000
+        });
     }
     res.json({ success: false });
 });
