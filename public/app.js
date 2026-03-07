@@ -1210,14 +1210,17 @@ async function deleteCurrentTodo() {
     const todoId = state.selectedTodo.id;
     const date = state.selectedTodo.date || state.selectedDate;
 
-    // Find index in current list to decide next selection
-    const currentIndex = state.todos.findIndex(t => t.id === todoId);
+    // Find next todo from the currently visible list to keep navigation smooth.
+    const visibleTodos = state.isAllTasksView
+        ? state.allTodos
+        : [...state.oldTodos, ...state.todos];
+    const currentIndex = visibleTodos.findIndex(t => t.id === todoId);
     let nextTodo = null;
-    if (state.todos.length > 1) {
-        if (currentIndex < state.todos.length - 1) {
-            nextTodo = state.todos[currentIndex + 1];
+    if (visibleTodos.length > 1 && currentIndex !== -1) {
+        if (currentIndex < visibleTodos.length - 1) {
+            nextTodo = visibleTodos[currentIndex + 1];
         } else {
-            nextTodo = state.todos[currentIndex - 1];
+            nextTodo = visibleTodos[currentIndex - 1];
         }
     }
 
@@ -1228,14 +1231,21 @@ async function deleteCurrentTodo() {
             body: JSON.stringify({ date, id: todoId })
         });
 
+        // Keep local UI state in sync immediately after delete.
+        state.todos = state.todos.filter(t => t.id !== todoId);
+        state.oldTodos = state.oldTodos.filter(t => t.id !== todoId);
+        state.allTodos = state.allTodos.filter(t => t.id !== todoId);
+
         if (nextTodo) {
-            // If next todo is on the same date, we can just reload and open
-            // If it's a search result or something else, it might be different, 
-            // but here state.todos is for the current selectedDate.
-            await loadTodos();
             openTodo(nextTodo);
         } else {
             closeEditor();
+        }
+
+        if (state.isAllTasksView) {
+            document.getElementById('sidebar-all-count').textContent = state.allTodos.length;
+        } else {
+            renderTodoLists();
         }
 
         await fetchHighlightedDates();
