@@ -110,12 +110,20 @@ body.resizing {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: opacity 0.2s, color 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
 }
 
 .icon-btn:hover {
     opacity: 1;
     color: var(--accent-color);
+    background-color: var(--todo-item-hover);
+}
+
+#settings-btn:hover {
+    transform: rotate(60deg);
 }
 
 .add-btn {

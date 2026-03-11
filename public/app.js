@@ -20,7 +20,8 @@ const state = {
     isReadOnly: false,
     lockHeartbeatInterval: null,
     autoUnlockInterval: null,
-    lockDurationInterval: null
+    lockDurationInterval: null,
+    accentColor: localStorage.getItem('accent-color') || '#5e5ce6'
 };
 
 function getSessionId() {
@@ -49,7 +50,12 @@ const titleInput = document.getElementById('todo-title-input');
 const contentEditor = document.getElementById('todo-content-editor');
 const dateTitle = document.getElementById('current-date-title');
 const saveStatus = document.getElementById('save-status');
-const themeToggle = document.getElementById('theme-toggle');
+const settingsBtn = document.getElementById('settings-btn');
+const settingsModal = document.getElementById('settings-modal');
+const closeSettingsBtn = document.getElementById('close-settings');
+const darkModeToggle = document.getElementById('dark-mode-toggle');
+const accentColorPicker = document.getElementById('accent-color-picker');
+const accentColorValue = document.getElementById('accent-color-value');
 const resizer = document.getElementById('resizer');
 const editorPane = document.getElementById('editor-section');
 const sidebar = document.getElementById('sidebar');
@@ -147,8 +153,9 @@ async function init() {
     await fetchTimelineStats();
     renderTimeline();
     renderCalendar();
-    await loadTodos();
+    loadTodos(); // No await needed if we don't want to block
     checkPrefersColorScheme();
+    applyStoredSettings();
     initResizer();
     setupImageResizing();
 
@@ -283,7 +290,15 @@ function setupEventListeners() {
         });
     }
 
-    themeToggle.addEventListener('click', toggleTheme);
+    settingsBtn.addEventListener('click', openSettings);
+    closeSettingsBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
+    settingsModal.addEventListener('click', (e) => {
+        if (e.target === settingsModal) settingsModal.classList.add('hidden');
+    });
+    darkModeToggle.addEventListener('change', toggleTheme);
+    accentColorPicker.addEventListener('input', (e) => {
+        updateAccentColor(e.target.value);
+    });
 
     // Search
     openSearchBtn.addEventListener('click', openSearch);
@@ -1695,6 +1710,45 @@ function toggleTheme() {
     state.isDarkMode = !state.isDarkMode;
     document.body.className = state.isDarkMode ? 'dark-mode' : 'light-mode';
     localStorage.setItem('theme', state.isDarkMode ? 'dark' : 'light');
+    
+    if (darkModeToggle) darkModeToggle.checked = state.isDarkMode;
+    // Update soft accent opacity based on new theme
+    updateAccentColor(state.accentColor);
+}
+
+function openSettings() {
+    settingsModal.classList.remove('hidden');
+    if (darkModeToggle) darkModeToggle.checked = state.isDarkMode;
+    if (accentColorPicker) accentColorPicker.value = state.accentColor;
+    if (accentColorValue) accentColorValue.textContent = state.accentColor.toUpperCase();
+}
+
+function updateAccentColor(color) {
+    state.accentColor = color;
+    document.documentElement.style.setProperty('--accent-color', color);
+    
+    // Calculate soft version (e.g., indigo soft is rgba(94, 92, 230, 0.1))
+    // If it's short hex #abc, expand to #aabbcc
+    let hex = color.replace('#', '');
+    if (hex.length === 3) {
+        hex = hex.split('').map(char => char + char).join('');
+    }
+    
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    
+    const softColor = `rgba(${r}, ${g}, ${b}, ${state.isDarkMode ? 0.15 : 0.1})`;
+    document.documentElement.style.setProperty('--accent-soft', softColor);
+    
+    if (accentColorValue) accentColorValue.textContent = color.toUpperCase();
+    localStorage.setItem('accent-color', color);
+}
+
+function applyStoredSettings() {
+    if (state.accentColor) {
+        updateAccentColor(state.accentColor);
+    }
 }
 
 function checkPrefersColorScheme() {
