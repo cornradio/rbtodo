@@ -130,6 +130,31 @@ export async function getOldUnfinishedTodos(currentDate) {
     return allOldUnfinished;
 }
 
+export async function getFutureTodos(currentDate) {
+    let files = [];
+    try {
+        files = await fs.readdir(DATA_DIR);
+    } catch (e) {
+        return [];
+    }
+
+    const today = dayjs(currentDate).startOf('day');
+    const allFuture = [];
+
+    for (const file of files) {
+        if (!/^\d{4}-\d{2}-\d{2}_.+\.json$/.test(file)) continue;
+
+        const datePart = file.split('_')[0];
+        if (dayjs(datePart).isAfter(today)) {
+            try {
+                const todo = JSON.parse(await fs.readFile(path.join(DATA_DIR, file), 'utf-8'));
+                allFuture.push({ ...todo, date: datePart });
+            } catch (e) { }
+        }
+    }
+    return allFuture;
+}
+
 export async function getAllDatesWithTodos() {
     let files = [];
     try {

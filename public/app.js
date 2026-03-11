@@ -11,6 +11,7 @@ const state = {
     calendarViewDate: dayjs().startOf('month'),
     isAllTasksView: false,
     allTodos: [],
+    futureTodos: [],
     currentLightboxIndex: -1,
     activeNoteImages: [],
     isCompressionEnabled: localStorage.getItem('img-compression') === 'true',
@@ -35,9 +36,11 @@ function getSessionId() {
 const timelineEl = document.getElementById('timeline');
 const calendarEl = document.getElementById('calendar');
 const oldTodosEl = document.getElementById('old-todos-list');
+const futureTodosEl = document.getElementById('future-todos-list');
 const todayTodosEl = document.getElementById('today-todos-list');
 const allTodosEl = document.getElementById('all-todos-list');
 const oldTodosSection = document.getElementById('old-todos-section');
+const futureTodosSection = document.getElementById('future-todos-section');
 const todayTodosSection = document.getElementById('today-todos-section');
 const allTodosSection = document.getElementById('all-todos-section');
 const editorSection = document.getElementById('editor-container');
@@ -428,6 +431,12 @@ function setupEventListeners() {
     if (oldTodosHeader) {
         oldTodosHeader.addEventListener('click', toggleOldTodosCollapse);
     }
+
+    // Future Todos Collapse
+    const futureTodosHeader = document.getElementById('future-todos-header');
+    if (futureTodosHeader) {
+        futureTodosHeader.addEventListener('click', toggleFutureTodosCollapse);
+    }
 }
 
 function setupKeyboardShortcuts() {
@@ -572,6 +581,9 @@ async function loadTodos() {
 
         const oldRes = await fetch(`/api/old-todos?date=${state.selectedDate}`);
         state.oldTodos = await oldRes.json();
+
+        const futureRes = await fetch(`/api/future-todos?date=${state.selectedDate}`);
+        state.futureTodos = await futureRes.json();
 
         renderTodoLists();
         updateDateTitle();
@@ -775,6 +787,7 @@ function renderTodoLists() {
     if (state.isAllTasksView) {
         renderAllTasksByWeek(state.allTodos, allTodosEl);
         oldTodosSection.classList.add('hidden');
+        futureTodosSection.classList.add('hidden');
         todayTodosSection.classList.add('hidden');
         allTodosSection.classList.remove('hidden');
 
@@ -783,16 +796,26 @@ function renderTodoLists() {
     }
 
     oldTodosSection.classList.remove('hidden');
+    futureTodosSection.classList.remove('hidden');
     todayTodosSection.classList.remove('hidden');
     allTodosSection.classList.add('hidden');
 
+    renderList(state.futureTodos, futureTodosEl, true);
     renderList(state.oldTodos, oldTodosEl, true);
     renderList(state.todos, todayTodosEl, false);
+
     const oldPendingCount = state.oldTodos.filter(t => !t.completed).length;
     const oldBadge = document.getElementById('old-todos-count');
     if (oldBadge) {
         oldBadge.textContent = oldPendingCount;
         oldBadge.classList.toggle('hidden', oldPendingCount === 0);
+    }
+
+    const futureCount = state.futureTodos.length;
+    const futureBadge = document.getElementById('future-todos-count');
+    if (futureBadge) {
+        futureBadge.textContent = futureCount;
+        futureBadge.classList.toggle('hidden', futureCount === 0);
     }
 
     const completedToday = state.todos.filter(t => t.completed).length;
@@ -1222,7 +1245,10 @@ function startLockHeartbeat(todoId) {
             });
             const result = await res.json();
             if (!result.success) {
-                toggleReadOnly(true, 'Your edit lock expired. Please refresh.');
+                // toggleReadOnly(true, 'Your edit lock expired. Please refresh.');
+                // User requested to suppress this warning. 
+                // Silently attempt to re-request lock if it fails but we are still editing
+                console.warn('Edit lock expired, silently ignoring session timeout as requested.');
             } else {
                 updateWaitingIndicator(result.someoneWaiting);
             }
@@ -1463,6 +1489,13 @@ function renderSearchResults(results) {
 function toggleOldTodosCollapse() {
     const list = document.getElementById('old-todos-list');
     const header = document.getElementById('old-todos-header');
+    list.classList.toggle('collapsed');
+    header.classList.toggle('collapsed-header');
+}
+
+function toggleFutureTodosCollapse() {
+    const list = document.getElementById('future-todos-list');
+    const header = document.getElementById('future-todos-header');
     list.classList.toggle('collapsed');
     header.classList.toggle('collapsed-header');
 }

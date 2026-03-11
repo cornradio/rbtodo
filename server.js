@@ -9,6 +9,7 @@ import {
     saveTodo,
     updateTodosOrder,
     getOldUnfinishedTodos,
+    getFutureTodos,
     getAllDatesWithTodos,
     searchTodos,
     getStatsForDates,
@@ -221,6 +222,16 @@ app.get('/api/old-todos', async (req, res) => {
     try {
         const oldTodos = await getOldUnfinishedTodos(date);
         res.json(oldTodos);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/future-todos', async (req, res) => {
+    const { date } = req.query; // current date
+    try {
+        const futureTodos = await getFutureTodos(date);
+        res.json(futureTodos);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
