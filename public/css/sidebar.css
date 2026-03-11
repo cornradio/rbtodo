@@ -176,8 +176,29 @@
 }
 
 .timeline-item.active {
-    background-color: var(--accent-color);
-    color: white;
+    background-color: var(--accent-soft);
+    color: var(--accent-color);
+    border-left: 4px solid var(--accent-color);
+    padding-left: 12px;
+}
+
+.timeline-item.is-today:not(.active) {
+    border-left: 2px solid var(--accent-color);
+    padding-left: 14px;
+    background-color: rgba(0, 122, 255, 0.03); /* Extremely subtle */
+}
+
+.dark-mode .timeline-item.is-today:not(.active) {
+    background-color: rgba(125, 122, 255, 0.05);
+}
+
+.timeline-item.is-today .date-label,
+.timeline-item.is-today .day-label {
+    font-weight: 700;
+}
+
+.timeline-item.active .todo-stats {
+    opacity: 1;
 }
 
 .timeline-item .todo-stats {
@@ -215,7 +236,7 @@
 }
 
 .cal-day.today {
-    background-color: rgba(0, 122, 255, 0.1);
+    background-color: var(--accent-soft);
     color: var(--accent-color);
     font-weight: bold;
 }

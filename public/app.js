@@ -704,6 +704,7 @@ async function saveTodosOrder(date, todos) {
 function renderTimeline() {
     timelineEl.innerHTML = '';
     const startOfWeek = dayjs().startOf('isoWeek');
+    const todayStr = dayjs().format('YYYY-MM-DD');
 
     for (let i = 0; i < 7; i++) {
         const d = startOfWeek.add(i, 'day');
@@ -711,7 +712,7 @@ function renderTimeline() {
         const stats = state.timelineStats[dateStr] || { total: 0, completed: 0 };
 
         const item = document.createElement('div');
-        item.className = `timeline-item ${dateStr === state.selectedDate ? 'active' : ''}`;
+        item.className = `timeline-item ${dateStr === state.selectedDate ? 'active' : ''} ${dateStr === todayStr ? 'is-today' : ''}`;
         item.innerHTML = `
             <div class="date-info">
                 <span class="date-label">${d.format('MM-DD')}</span>

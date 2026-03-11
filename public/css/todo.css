@@ -155,22 +155,21 @@
 }
 
 .todo-item.active {
-    background-color: var(--todo-item-hover);
+    background-color: var(--accent-soft);
     position: relative;
     padding-left: 12px;
-    /* Restore original padding */
 }
 
 .todo-item.active::before {
     content: '';
     position: absolute;
-    right: 0;
+    left: 0;
     top: 0;
     bottom: 0;
     width: 4px;
     background-color: var(--accent-color);
-    border-radius: 4px 0 0 4px;
-    box-shadow: -2px 0 10px rgba(0, 122, 255, 0.2);
+    border-radius: 0 4px 4px 0;
+    box-shadow: 2px 0 10px rgba(94, 98, 230, 0.15);
     z-index: 2;
 }
 
@@ -198,6 +197,8 @@
 
 .todo-checkbox.checked {
     background-color: var(--accent-color);
+    box-shadow: 0 4px 10px var(--accent-soft);
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .todo-checkbox.checked::after {
