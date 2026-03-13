@@ -228,6 +228,47 @@ function setupEventListeners() {
                 }
             }
         }
+
+        // Enter: continue checkboxes
+        if (e.key === 'Enter') {
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0) {
+                const range = sel.getRangeAt(0);
+                let line = range.startContainer;
+                while (line && line !== contentEditor && !['DIV', 'P', 'LI'].includes(line.tagName)) {
+                    line = line.parentNode;
+                }
+
+                if (line && line !== contentEditor) {
+                    const checkbox = line.querySelector('input.md-checkbox');
+                    if (checkbox) {
+                        const textContent = line.textContent.trim();
+                        // If empty checkbox line, remove it
+                        if (textContent === "") {
+                            e.preventDefault();
+                            line.innerHTML = '<br>';
+                            return;
+                        }
+
+                        // Continue checkbox to next line
+                        e.preventDefault();
+                        
+                        // Use insertParagraph to split the line and create a new block correctly
+                        document.execCommand('insertParagraph');
+                        
+                        // Insert the checkbox into the new line
+                        const cbHtml = '<input type="checkbox" class="md-checkbox" style="width:18px; height:18px; margin-right:6px; cursor:pointer; vertical-align:middle;">&nbsp;';
+                        document.execCommand('insertHTML', false, cbHtml);
+                    }
+                }
+            }
+        }
+
+        // Shortcut: Ctrl+Shift+C for checkboxes
+        if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+            e.preventDefault();
+            toggleCheckboxesOnSelection();
+        }
     });
 
     // Paste image support
@@ -338,6 +379,8 @@ function setupEventListeners() {
     accentColorPicker.addEventListener('input', (e) => {
         updateAccentColor(e.target.value);
     });
+
+    document.getElementById('checkbox-toolbar-btn')?.addEventListener('click', toggleCheckboxesOnSelection);
 
     document.getElementById('this-week-btn').addEventListener('click', showThisWeek);
     
@@ -2284,6 +2327,74 @@ function convertMDCheckboxes(element) {
         });
         parent.replaceChild(fragment, textNode);
     });
+}
+
+function toggleCheckboxesOnSelection() {
+    if (state.isReadOnly) return;
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+
+    // Get line block helper
+    function getLineBlock(node) {
+        while (node && node !== contentEditor && !['DIV', 'P', 'LI', 'BLOCKQUOTE'].includes(node.tagName)) {
+            node = node.parentNode;
+        }
+        return (node && node !== contentEditor) ? node : null;
+    }
+
+    // Find all blocks within selection
+    let startLine = getLineBlock(range.startContainer);
+    let endLine = getLineBlock(range.endContainer);
+    
+    // Normalize if cursor at base level
+    if (!startLine) {
+        document.execCommand('formatBlock', false, 'div');
+        startLine = getLineBlock(sel.anchorNode);
+        endLine = getLineBlock(sel.focusNode);
+    }
+
+    let blocks = [];
+    if (startLine && endLine) {
+        const allChildren = Array.from(contentEditor.children);
+        let inSelection = false;
+        allChildren.forEach(child => {
+            if (child === startLine || child === endLine) {
+                blocks.push(child);
+                if (startLine !== endLine) inSelection = !inSelection;
+            } else if (inSelection) {
+                blocks.push(child);
+            }
+        });
+    } else if (startLine) {
+        blocks = [startLine];
+    }
+
+    if (blocks.length === 0) return;
+
+    const anyMissing = blocks.some(b => !b.querySelector('input.md-checkbox'));
+
+    if (anyMissing) {
+        // Add checkboxes to all selected lines
+        blocks.forEach(b => {
+            if (!b.querySelector('input.md-checkbox')) {
+                const cbHtml = '<input type="checkbox" class="md-checkbox" style="width:18px; height:18px; margin-right:6px; cursor:pointer; vertical-align:middle;">&nbsp;';
+                if (b.innerHTML === '<br>') b.innerHTML = cbHtml;
+                else b.innerHTML = cbHtml + b.innerHTML;
+            }
+        });
+    } else {
+        // Toggle check state for all
+        const someUnchecked = blocks.some(b => !b.querySelector('input.md-checkbox').checked);
+        blocks.forEach(b => {
+            const cb = b.querySelector('input.md-checkbox');
+            cb.checked = someUnchecked;
+            if (someUnchecked) cb.setAttribute('checked', 'checked');
+            else cb.removeAttribute('checked');
+        });
+    }
+    
+    autoSave();
 }
 
 // Start
