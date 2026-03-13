@@ -49,10 +49,12 @@
                     <img src="icon.png" alt="RB Logo" id="sidebar-icon">
                     <div style="position: absolute; bottom: -2px; right: -2px; background: var(--accent-color); color: white; border-radius: 50%; width: 12px; height: 12px; font-size: 8px; display: flex; align-items: center; justify-content: center; border: 2px solid var(--sidebar-bg);">▼</div>
                 </div>
-                <button id="open-search-btn" class="sidebar-search-trigger" title="Search (Ctrl+Shift+P)">
-                    <span>Search...</span>
-                    <span class="shortcut-hint">⌘P</span>
-                </button>
+                <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 4px;">
+                    <div id="project-display-label" style="font-size: 0.7rem; font-weight: 700; color: var(--accent-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; text-transform: uppercase; line-height: 1;">Default</div>
+                    <button id="open-search-btn" class="sidebar-search-trigger" title="Search (Ctrl+Shift+P)" style="padding: 6px 10px; font-size: 0.75rem;">
+                        <span>Search...</span>
+                    </button>
+                </div>
                 <button id="settings-btn" class="icon-btn" title="Settings">⚙️</button>
             </div>
 

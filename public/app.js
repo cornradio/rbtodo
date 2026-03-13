@@ -27,7 +27,8 @@ const state = {
     accentColorLight: localStorage.getItem('accent-color-light') || '#5e5ce6',
     accentColorDark: localStorage.getItem('accent-color-dark') || '#7b79ff',
     projects: [],
-    currentProject: 'Default'
+    currentProject: 'Default',
+    appTitle: 'RB Todo'
 };
 
 function migrateAccentColors() {
@@ -206,7 +207,8 @@ async function applyAppConfig() {
 
         const config = await res.json();
         if (config.title) {
-            document.title = config.title;
+            state.appTitle = config.title;
+            updateWindowTitle();
             const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
             if (appleTitleMeta) appleTitleMeta.setAttribute('content', config.shortTitle || config.title);
             if (mobileAppTitleText) mobileAppTitleText.textContent = config.shortTitle || config.title;
@@ -479,9 +481,10 @@ function setupEventListeners() {
     fullscreenBtn.addEventListener('click', toggleFullscreen);
 
     document.getElementById('add-project-btn')?.addEventListener('click', createProject);
-    document.getElementById('project-selector-trigger')?.addEventListener('click', () => {
-        document.getElementById('project-modal').classList.remove('hidden');
-    });
+    const openProjects = () => document.getElementById('project-modal').classList.remove('hidden');
+    document.getElementById('project-selector-trigger')?.addEventListener('click', openProjects);
+    document.getElementById('project-display-label')?.addEventListener('click', openProjects);
+    
     document.getElementById('close-project-modal')?.addEventListener('click', () => {
         document.getElementById('project-modal').classList.add('hidden');
     });
@@ -1736,9 +1739,13 @@ async function loadProjects() {
         const curEl = document.getElementById('current-project-name');
         if (curEl) curEl.textContent = state.currentProject;
         
+        const labelEl = document.getElementById('project-display-label');
+        if (labelEl) labelEl.textContent = state.currentProject;
+
         const logoTrigger = document.getElementById('project-selector-trigger');
         if (logoTrigger) logoTrigger.title = `Project: ${state.currentProject}`;
         
+        updateWindowTitle();
         renderProjects();
     } catch (e) { console.error('Failed to load projects:', e); }
 }
@@ -2166,6 +2173,11 @@ function toggleTheme() {
     document.body.classList.toggle('dark-mode', state.isDarkMode);
     localStorage.setItem('theme', state.isDarkMode ? 'dark' : 'light');
     applyStoredSettings();
+}
+
+function updateWindowTitle() {
+    const baseTitle = state.appTitle || 'RB Todo';
+    document.title = state.currentProject ? `[${state.currentProject}] ${baseTitle}` : baseTitle;
 }
 
 function openSettings() {
