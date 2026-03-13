@@ -15,6 +15,7 @@ const excludes = [
     'node_modules',
     'data',
     'uploads',
+    'projects',          // User projects data
     'dist',              // Old dist folder
     releaseFolderName,   // Current release folder
     '.git',
@@ -85,5 +86,5 @@ try {
 console.log('\n--- Build Summary ---');
 console.log(`1. Release Source: ./${releaseFolderName}/`);
 console.log(`2. Release Zip: ./${zipName}`);
-console.log('3. Data and node_modules folders were EXCLUDED.');
+console.log('3. Data (projects, uploads, etc) and node_modules folders were EXCLUDED.');
 console.log('4. deploy instructions: Unzip and run "npm install".');
