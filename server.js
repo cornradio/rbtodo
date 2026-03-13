@@ -12,11 +12,32 @@ import {
     getFutureTodos,
     getAllDatesWithTodos,
     searchTodos,
-    getStatsForDates,
-    getWeeklyData,
     deleteTodo,
-    getAllTodos
+    getAllTodos,
+    ensureStorageDir,
+    getStorageDir
 } from './data-manager.js';
+
+const PROJECT_CONFIG_PATH = path.resolve('projects/projects.json');
+let currentProject = 'Default';
+
+async function saveProjectConfig() {
+    try {
+        await fs.promises.mkdir(path.dirname(PROJECT_CONFIG_PATH), { recursive: true });
+        await fs.promises.writeFile(PROJECT_CONFIG_PATH, JSON.stringify({ currentProject }, null, 2), 'utf-8');
+    } catch (e) {
+        console.error('Failed to save project config:', e);
+    }
+}
+
+async function loadProjectConfig() {
+    try {
+        const data = JSON.parse(await fs.promises.readFile(PROJECT_CONFIG_PATH, 'utf-8'));
+        currentProject = data.currentProject || 'Default';
+    } catch (e) {}
+    await ensureStorageDir(path.resolve(`projects/${currentProject}`));
+}
+await loadProjectConfig();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -99,11 +120,18 @@ app.get('/api/app-config', (req, res) => {
     });
 });
 app.use(express.static('public'));
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', (req, res) => {
+    const filePath = path.join(getStorageDir(), decodeURIComponent(req.path));
+    res.sendFile(filePath, (err) => {
+        if (err) res.status(404).end();
+    });
+});
 
 // Multer for uploads
 const storage = multer.diskStorage({
-    destination: 'uploads/',
+    destination: (req, file, cb) => {
+        cb(null, getStorageDir() + '/');
+    },
     filename: (req, file, cb) => {
         const ext = path.extname(file.originalname);
         cb(null, `${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`);
@@ -291,8 +319,45 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     res.json({ url: `/uploads/${req.file.filename}` });
 });
 
-app.listen(port, () => {
-    console.log(`Todo server running at http://localhost:${port}`);
+// --- Project Management ---
+app.get('/api/projects', async (req, res) => {
+    try {
+        const projectsDir = path.resolve('projects');
+        const entries = await fs.promises.readdir(projectsDir, { withFileTypes: true });
+        const projects = entries
+            .filter(e => e.isDirectory())
+            .map(e => e.name);
+        res.json({ projects, currentProject });
+    } catch (e) {
+        res.json({ projects: ['Default'], currentProject });
+    }
+});
+
+app.post('/api/projects/switch', async (req, res) => {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Project name required' });
+    
+    currentProject = name;
+    await ensureStorageDir(path.resolve(`projects/${currentProject}`));
+    await saveProjectConfig();
+    res.json({ success: true, currentProject });
+});
+
+app.post('/api/projects/create', async (req, res) => {
+    const { name } = req.body;
+    if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
+        return res.status(400).json({ error: 'Invalid project name' });
+    }
+    
+    const newDir = path.resolve(`projects/${name}`);
+    await ensureStorageDir(newDir);
+    res.json({ success: true, name });
+});
+
+const PORT = parseCliArgs(process.argv).port || 3000;
+app.listen(PORT, () => {
+    console.log(`Todo server running at http://localhost:${PORT}`);
+    console.log(`Current project: ${currentProject}`);
     if (cli.iconPath) {
         console.log(`Using custom icon: ${iconPath}`);
     }

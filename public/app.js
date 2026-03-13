@@ -24,8 +24,23 @@ const state = {
     lockHeartbeatInterval: null,
     autoUnlockInterval: null,
     lockDurationInterval: null,
-    accentColor: localStorage.getItem('accent-color') || '#5e5ce6'
+    accentColorLight: localStorage.getItem('accent-color-light') || '#5e5ce6',
+    accentColorDark: localStorage.getItem('accent-color-dark') || '#7b79ff',
+    projects: [],
+    currentProject: 'Default'
 };
+
+function migrateAccentColors() {
+    const oldColor = localStorage.getItem('accent-color');
+    if (oldColor && !localStorage.getItem('accent-color-light')) {
+        localStorage.setItem('accent-color-light', oldColor);
+        state.accentColorLight = oldColor;
+    }
+    if (oldColor && !localStorage.getItem('accent-color-dark')) {
+        localStorage.setItem('accent-color-dark', oldColor);
+        state.accentColorDark = oldColor;
+    }
+}
 
 function getSessionId() {
     let id = sessionStorage.getItem('todo_session_id');
@@ -57,7 +72,6 @@ const settingsBtn = document.getElementById('settings-btn');
 const settingsModal = document.getElementById('settings-modal');
 const closeSettingsBtn = document.getElementById('close-settings');
 const darkModeToggle = document.getElementById('dark-mode-toggle');
-const accentColorPicker = document.getElementById('accent-color-picker');
 const accentColorValue = document.getElementById('accent-color-value');
 const resizer = document.getElementById('resizer');
 const editorPane = document.getElementById('editor-section');
@@ -149,18 +163,30 @@ function setSaveIndicators(status = 'idle', { flash = false, target = 'both' } =
 // --- Initialization ---
 async function init() {
     await applyAppConfig();
-    setupEventListeners();
     setupKeyboardShortcuts();
     registerServiceWorker();
     await fetchHighlightedDates();
     await fetchTimelineStats();
+    initResizer();
+    migrateAccentColors();
+    checkPrefersColorScheme();
+    
+    // Check URL for project param
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetProject = urlParams.get('project');
+    
+    await loadProjects();
+    
+    if (targetProject && targetProject !== state.currentProject) {
+        await switchProject(targetProject, true);
+    }
+    
+    applyStoredSettings();
+    await loadTodos();
     renderTimeline();
     renderCalendar();
-    loadTodos(); // No await needed if we don't want to block
-    checkPrefersColorScheme();
-    applyStoredSettings();
     updateSidebarCounts();
-    initResizer();
+    setupEventListeners();
     setupImageResizing();
 
     // Attempt to unlock on close
@@ -409,8 +435,11 @@ function setupEventListeners() {
         if (e.target === settingsModal) settingsModal.classList.add('hidden');
     });
     darkModeToggle.addEventListener('change', toggleTheme);
-    accentColorPicker.addEventListener('input', (e) => {
-        updateAccentColor(e.target.value);
+    document.getElementById('accent-color-light')?.addEventListener('input', (e) => {
+        updateAccentColorSettings(e.target.value, false);
+    });
+    document.getElementById('accent-color-dark')?.addEventListener('input', (e) => {
+        updateAccentColorSettings(e.target.value, true);
     });
 
     document.getElementById('checkbox-toolbar-btn')?.addEventListener('click', toggleCheckboxesOnSelection);
@@ -424,6 +453,16 @@ function setupEventListeners() {
         copyDropdown.classList.toggle('hidden');
     });
     document.addEventListener('click', () => copyDropdown?.classList.add('hidden'));
+    document.getElementById('copy-html-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyAsHtml();
+        copyDropdown.classList.add('hidden');
+    });
+    document.getElementById('copy-text-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyAsPlainText();
+        copyDropdown.classList.add('hidden');
+    });
 
     // Search
     openSearchBtn.addEventListener('click', openSearch);
@@ -438,6 +477,17 @@ function setupEventListeners() {
 
     // Fullscreen
     fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+    document.getElementById('add-project-btn')?.addEventListener('click', createProject);
+    document.getElementById('project-selector-trigger')?.addEventListener('click', () => {
+        document.getElementById('project-modal').classList.remove('hidden');
+    });
+    document.getElementById('close-project-modal')?.addEventListener('click', () => {
+        document.getElementById('project-modal').classList.add('hidden');
+    });
+    document.getElementById('project-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'project-modal') e.target.classList.add('hidden');
+    });
 
     // Delete
     document.getElementById('delete-todo').addEventListener('click', () => {
@@ -874,8 +924,7 @@ function renderTimeline() {
                 <span class="day-label">${d.format('ddd').toUpperCase()}</span>
             </div>
             <div class="todo-stats">
-                <span class="todo-count">${stats.completed}/${stats.total}</span>
-                <div style="font-size: 0.6rem">TODO</div>
+                <span class="todo-count">${state.timelineStats[dateStr]?.completed || 0}/${state.timelineStats[dateStr]?.total || 0}</span>
             </div>
         `;
         item.onclick = () => selectDate(dateStr);
@@ -1678,6 +1727,80 @@ function openSearch() {
     setTimeout(() => searchInput.focus(), 100);
 }
 
+async function loadProjects() {
+    try {
+        const res = await fetch('/api/projects');
+        const data = await res.json();
+        state.projects = data.projects;
+        state.currentProject = data.currentProject;
+        const curEl = document.getElementById('current-project-name');
+        if (curEl) curEl.textContent = state.currentProject;
+        
+        const logoTrigger = document.getElementById('project-selector-trigger');
+        if (logoTrigger) logoTrigger.title = `Project: ${state.currentProject}`;
+        
+        renderProjects();
+    } catch (e) { console.error('Failed to load projects:', e); }
+}
+
+function renderProjects() {
+    const list = document.getElementById('project-list');
+    if (!list) return;
+    list.innerHTML = '';
+    state.projects.forEach(p => {
+        const item = document.createElement('div');
+        item.className = `timeline-item ${p === state.currentProject ? 'active' : ''}`;
+        item.innerHTML = `
+            <div class="date-info">
+                <span class="day-label">${p.toUpperCase()}</span>
+            </div>
+            ${p === state.currentProject ? '<span style="font-size: 0.8rem;">✓</span>' : ''}
+        `;
+        item.onclick = () => switchProject(p);
+        list.appendChild(item);
+    });
+}
+
+async function switchProject(name, silent = false) {
+    if (name === state.currentProject && !silent) return;
+    try {
+        const res = await fetch('/api/projects/switch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const data = await res.json();
+        if (data.success) {
+            state.currentProject = data.currentProject;
+            if (!silent) {
+                // Update URL for permanence if desired or just reload
+                const url = new URL(window.location);
+                url.searchParams.set('project', name);
+                window.location.href = url.toString();
+            }
+        }
+    } catch (e) { console.error('Switch project failed:', e); }
+}
+
+async function createProject() {
+    const name = prompt('Enter new project name (letters, numbers, _ - only):');
+    if (!name) return;
+    try {
+        const res = await fetch('/api/projects/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const data = await res.json();
+        if (data.success) {
+            await loadProjects();
+            switchProject(name);
+        } else {
+            alert(data.error || 'Failed to create project');
+        }
+    } catch (e) { console.error('Create project failed:', e); }
+}
+
 async function handleSearch() {
     const q = searchInput.value.trim();
     if (!q) {
@@ -1844,16 +1967,80 @@ async function showThisWeek() {
     }
 }
 
-async function copyAsPlainText() {
-    const text = contentEditor.innerText;
+async function copyAsHtml() {
+    if (state.isReadOnly) return;
+    
+    // Fallback for non-secure contexts (HTTP)
+    async function fallbackCopy(html) {
+        // execCommand fallback (less reliable for HTML but best we can do for HTTP)
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        div.style.position = 'fixed';
+        div.style.opacity = '0';
+        div.style.pointerEvents = 'none';
+        document.body.appendChild(div);
+        
+        const range = document.createRange();
+        range.selectNode(div);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        try {
+            const success = document.execCommand('copy');
+            selection.removeAllRanges();
+            document.body.removeChild(div);
+            return success;
+        } catch (err) {
+            console.error('execCommand copy failed:', err);
+            document.body.removeChild(div);
+            return false;
+        }
+    }
+
+    const html = contentEditor.innerHTML;
     try {
-        await navigator.clipboard.writeText(text);
-        const btn = document.getElementById('copy-menu-btn');
-        const originalText = btn.textContent;
-        btn.textContent = '✅ Copied Text!';
-        setTimeout(() => btn.textContent = originalText, 2000);
+        if (navigator.clipboard && navigator.clipboard.write) {
+            const type = 'text/html';
+            const blob = new Blob([html], { type });
+            const data = [new ClipboardItem({ [type]: blob })];
+            await navigator.clipboard.write(data);
+        } else {
+            throw new Error('Clipboard API unavailable');
+        }
+        setSaveIndicators('success', { flash: true, target: 'editor' });
     } catch (err) {
-        console.error('Failed to copy text:', err);
+        if (await fallbackCopy(html)) {
+            setSaveIndicators('success', { flash: true, target: 'editor' });
+        } else {
+            console.error('Copy failed:', err);
+            alert('Copy failed. This browser may require a secure connection (HTTPS) or your manual selection.');
+        }
+    }
+}
+
+async function copyAsPlainText() {
+    if (state.isReadOnly) return;
+
+    const text = contentEditor.innerText;
+    
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            // fallback
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+        setSaveIndicators('success', { flash: true, target: 'editor' });
+    } catch (err) {
+        console.error('Copy plain text failed:', err);
+        alert('Copy failed.');
     }
 }
 
@@ -1976,27 +2163,25 @@ function debounce(func, wait) {
 
 function toggleTheme() {
     state.isDarkMode = !state.isDarkMode;
-    document.body.className = state.isDarkMode ? 'dark-mode' : 'light-mode';
+    document.body.classList.toggle('dark-mode', state.isDarkMode);
     localStorage.setItem('theme', state.isDarkMode ? 'dark' : 'light');
-    
-    if (darkModeToggle) darkModeToggle.checked = state.isDarkMode;
-    // Update soft accent opacity based on new theme
-    updateAccentColor(state.accentColor);
+    applyStoredSettings();
 }
 
 function openSettings() {
     settingsModal.classList.remove('hidden');
-    if (darkModeToggle) darkModeToggle.checked = state.isDarkMode;
-    if (accentColorPicker) accentColorPicker.value = state.accentColor;
-    if (accentColorValue) accentColorValue.textContent = state.accentColor.toUpperCase();
+    document.getElementById('dark-mode-toggle').checked = state.isDarkMode;
+    document.getElementById('accent-color-light').value = state.accentColorLight;
+    document.getElementById('accent-color-dark').value = state.accentColorDark;
 }
 
+// --- Color & Theme ---
 function updateAccentColor(color) {
-    state.accentColor = color;
+    if (!color) return;
     document.documentElement.style.setProperty('--accent-color', color);
     
-    // Calculate soft version (e.g., indigo soft is rgba(94, 92, 230, 0.1))
-    // If it's short hex #abc, expand to #aabbcc
+    if (accentColorValue) accentColorValue.textContent = color.toUpperCase();
+
     let hex = color.replace('#', '');
     if (hex.length === 3) {
         hex = hex.split('').map(char => char + char).join('');
@@ -2008,15 +2193,39 @@ function updateAccentColor(color) {
     
     const softColor = `rgba(${r}, ${g}, ${b}, ${state.isDarkMode ? 0.15 : 0.1})`;
     document.documentElement.style.setProperty('--accent-soft', softColor);
-    
-    if (accentColorValue) accentColorValue.textContent = color.toUpperCase();
-    localStorage.setItem('accent-color', color);
+}
+
+function updateAccentColorSettings(color, isDark) {
+    if (isDark) {
+        state.accentColorDark = color;
+        localStorage.setItem('accent-color-dark', color);
+    } else {
+        state.accentColorLight = color;
+        localStorage.setItem('accent-color-light', color);
+    }
+    applyStoredSettings();
+}
+
+function handleToolbarAction(command, value) {
+    if (command === 'fontSize') {
+        const current = parseInt(document.queryCommandValue('fontSize'), 10) || 3;
+        let newSize = current;
+        if (value === 'increase' && current < 7) newSize = current + 1;
+        if (value === 'decrease' && current > 1) newSize = current - 1;
+        document.execCommand('fontSize', false, String(newSize));
+    } else if (command === 'resetTextStyle') {
+        document.execCommand('removeFormat', false, null);
+    } else if (command === 'foreColor' && value === 'clear') {
+        document.execCommand('removeFormat', false, null);
+    } else {
+        document.execCommand(command, false, value);
+    }
+    contentEditor.focus();
 }
 
 function applyStoredSettings() {
-    if (state.accentColor) {
-        updateAccentColor(state.accentColor);
-    }
+    const color = state.isDarkMode ? state.accentColorDark : state.accentColorLight;
+    updateAccentColor(color);
 }
 
 function checkPrefersColorScheme() {
@@ -2075,85 +2284,6 @@ function updateNoteStats() {
         noteDate.textContent = dateStr || '';
     }
 }
-
-function handleToolbarAction(command, value) {
-    if (command === 'fontSize') {
-        const current = parseInt(document.queryCommandValue('fontSize'), 10) || 3;
-        let newSize = current;
-        if (value === 'increase' && current < 7) newSize = current + 1;
-        if (value === 'decrease' && current > 1) newSize = current - 1;
-        document.execCommand('fontSize', false, String(newSize));
-    } else if (command === 'resetTextStyle') {
-        // Reset style back to editor defaults.
-        document.execCommand('removeFormat', false, null);
-    } else if (command === 'foreColor' && value === 'clear') {
-        document.execCommand('removeFormat', false, null);
-    } else {
-        document.execCommand(command, false, value);
-    }
-    contentEditor.focus();
-}
-
-async function copyAsHtml() {
-    const copyBtn = document.getElementById('copy-html-btn');
-    const originalText = copyBtn.textContent;
-    if (copyBtn.disabled || copyBtn.textContent.includes('Loading')) return;
-
-    try {
-        copyBtn.textContent = '⏱ Loading...';
-
-        // Clone the content to manipulate it
-        const clone = contentEditor.cloneNode(true);
-        const images = clone.querySelectorAll('img');
-
-        // Replace all local images with base64 for embedding in Word/Email
-        for (const img of images) {
-            try {
-                const response = await fetch(img.src);
-                const blob = await response.blob();
-                const reader = new FileReader();
-                const base64 = await new Promise((resolve) => {
-                    reader.onloadend = () => resolve(reader.result);
-                    reader.readAsDataURL(blob);
-                });
-                img.src = base64;
-                // Add some styling for display in Word
-                img.style.maxWidth = '100%';
-                img.style.display = 'block';
-                img.style.margin = '10px 0';
-            } catch (err) {
-                console.error('Failed to embed image:', err);
-            }
-        }
-
-        const html = clone.innerHTML;
-        const text = clone.innerText;
-
-        // Use modern Clipboard API to write both HTML and Text
-        const type = "text/html";
-        const blob = new Blob([html], { type });
-        const data = [new ClipboardItem({
-            [type]: blob,
-            ["text/plain"]: new Blob([text], { type: "text/plain" })
-        })];
-
-        await navigator.clipboard.write(data);
-        copyBtn.textContent = '✅ Copied!';
-    } catch (err) {
-        console.error('Failed to copy HTML:', err);
-        const htmlContent = contentEditor.innerHTML;
-        const fallbackModal = document.getElementById('copy-fallback-modal');
-        const fallbackTextarea = document.getElementById('copy-fallback-textarea');
-
-        fallbackModal.classList.remove('hidden');
-        fallbackTextarea.value = htmlContent;
-    } finally {
-        setTimeout(() => {
-            copyBtn.textContent = originalText;
-        }, 2000);
-    }
-}
-
 
 // --- Lightbox & Image Gallery ---
 function openLightbox(index) {

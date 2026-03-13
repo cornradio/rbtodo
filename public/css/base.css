@@ -3,8 +3,6 @@
     --sidebar-bg: #ffffff;
     --text-color: #1a1a1a;
     --text-secondary: #666666;
-    --accent-color: #5e5ce6;
-    --accent-soft: rgba(94, 92, 230, 0.1);
     --border-color: #e0e0e0;
     --todo-item-bg: #ffffff;
     --todo-item-hover: #f1f3f5;
@@ -21,8 +19,6 @@
     --sidebar-bg: #1e1e1e;
     --text-color: #e0e0e0;
     --text-secondary: #a0a0a0;
-    --accent-color: #7d7aff;
-    --accent-soft: rgba(125, 122, 255, 0.15);
     --border-color: #333333;
     --todo-item-bg: #1e1e1e;
     --todo-item-hover: #2c2c2c;

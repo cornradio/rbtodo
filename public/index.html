@@ -45,8 +45,9 @@
                 <div class="toggle-anchor"></div>
             </div>
             <div class="sidebar-header">
-                <div class="sidebar-logo">
+                <div class="sidebar-logo" id="project-selector-trigger" title="Switch Project" style="cursor: pointer; position: relative;">
                     <img src="icon.png" alt="RB Logo" id="sidebar-icon">
+                    <div style="position: absolute; bottom: -2px; right: -2px; background: var(--accent-color); color: white; border-radius: 50%; width: 12px; height: 12px; font-size: 8px; display: flex; align-items: center; justify-content: center; border: 2px solid var(--sidebar-bg);">▼</div>
                 </div>
                 <button id="open-search-btn" class="sidebar-search-trigger" title="Search (Ctrl+Shift+P)">
                     <span>Search...</span>
@@ -62,9 +63,8 @@
                     </div>
                     <div class="timeline-container" style="padding-bottom: 0; margin-bottom: -10px;">
                         <div id="this-week-btn" class="timeline-item">
-                            <div class="date-info" style="display:flex; align-items:center; gap:8px;">
-                                <span class="date-label" style="font-size:0.7rem; padding:2px 4px; background:var(--accent-color); color:white; border-radius:4px; font-weight:bold;">NOW</span>
-                                <span class="day-label">WEEK</span>
+                            <div class="date-info">
+                                <span class="day-label">THIS WEEK</span>
                             </div>
                             <div class="todo-stats">
                                 <span id="sidebar-week-count" class="todo-count">0</span>
@@ -350,12 +350,13 @@
                     </label>
                 </div>
                 <div class="settings-item" style="margin-bottom: 30px;">
-                    <div style="margin-bottom: 12px; font-weight: 500;">Accent Color</div>
+                    <div style="margin-bottom: 12px; font-weight: 500;">Accent Colors (Light / Dark)</div>
                     <div style="display: flex; align-items: center; gap: 16px;">
-                        <input type="color" id="accent-color-picker" title="Pick Accent Color" style="width: 48px; height: 48px; border: 2px solid var(--border-color); border-radius: 12px; cursor: pointer; background: none; padding: 2px;">
+                        <input type="color" id="accent-color-light" title="Light Theme Accent" style="width: 40px; height: 40px; border: 2px solid var(--border-color); border-radius: 10px; cursor: pointer; background: none; padding: 2px;">
+                        <input type="color" id="accent-color-dark" title="Dark Theme Accent" style="width: 40px; height: 40px; border: 2px solid var(--border-color); border-radius: 10px; cursor: pointer; background: none; padding: 2px;">
                         <div style="display: flex; flex-direction: column;">
-                            <span id="accent-color-value" style="font-family: monospace; font-size: 0.9rem; font-weight: 600;">#5e5ce6</span>
-                            <span style="font-size: 0.75rem; opacity: 0.5;">Choose your primary theme color</span>
+                            <span id="accent-color-value" style="font-family: monospace; font-size: 0.9rem; font-weight: 600;">COLOR</span>
+                            <span style="font-size: 0.75rem; opacity: 0.5;">Custom colors for each theme</span>
                         </div>
                     </div>
                 </div>
@@ -365,6 +366,23 @@
                         View Project on GitHub
                     </a>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Selector Modal -->
+    <div id="project-modal" class="search-overlay hidden">
+        <div class="search-results-window" style="width: 350px;">
+            <div class="search-results-header">
+                <h3>Projects</h3>
+                <button id="add-project-btn" class="icon-btn" title="New Project">+</button>
+                <button id="close-project-modal" class="icon-btn modal-close-btn">✕</button>
+            </div>
+            <div id="project-list" class="timeline-container" style="max-height: 400px; overflow-y: auto; padding-top: 15px;">
+                <!-- Projects injected here -->
+            </div>
+            <div style="padding: 15px; border-top: 1px solid var(--border-color); opacity: 0.5; font-size: 0.75rem;">
+                Current: <span id="current-project-name">Default</span>
             </div>
         </div>
     </div>
