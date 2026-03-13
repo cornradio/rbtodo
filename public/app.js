@@ -481,6 +481,7 @@ function setupEventListeners() {
     fullscreenBtn.addEventListener('click', toggleFullscreen);
 
     document.getElementById('add-project-btn')?.addEventListener('click', createProject);
+    document.getElementById('import-project-btn')?.addEventListener('click', importProject);
     const openProjects = () => document.getElementById('project-modal').classList.remove('hidden');
     document.getElementById('project-selector-trigger')?.addEventListener('click', openProjects);
     document.getElementById('project-display-label')?.addEventListener('click', openProjects);
@@ -1757,15 +1758,137 @@ function renderProjects() {
     state.projects.forEach(p => {
         const item = document.createElement('div');
         item.className = `timeline-item ${p === state.currentProject ? 'active' : ''}`;
+        item.style.cssText = 'display: flex; flex-direction: column; padding: 12px 16px; border-bottom: 1px solid var(--border-color); cursor: default;';
+        
+        const isDefault = p === 'Default';
+        const isActive = p === state.currentProject;
+
         item.innerHTML = `
-            <div class="date-info">
-                <span class="day-label">${p.toUpperCase()}</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div class="project-info" style="cursor: pointer; flex: 1; display: flex; align-items: center; gap: 10px;">
+                    <span class="day-label" style="font-size: 1rem; font-weight: 700;">${p.toUpperCase()}</span>
+                    ${isActive ? '<span style="color: white; font-size: 0.65rem; font-weight: 800; background: var(--accent-color); padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;">ACTIVE</span>' : ''}
+                </div>
             </div>
-            ${p === state.currentProject ? '<span style="font-size: 0.8rem;">✓</span>' : ''}
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="export-btn side-action-btn" style="background: var(--accent-soft); color: var(--accent-color);">EXPORT</button>
+                ${!isDefault ? `<button class="rename-btn side-action-btn">RENAME</button>` : ''}
+                ${!isDefault && !isActive ? `<button class="delete-btn side-action-btn" style="background: rgba(255, 69, 58, 0.1); color: #ff453a;">DELETE</button>` : ''}
+            </div>
         `;
-        item.onclick = () => switchProject(p);
+        
+        const info = item.querySelector('.project-info');
+        info.onclick = () => switchProject(p);
+        
+        const expBtn = item.querySelector('.export-btn');
+        expBtn.onclick = (e) => { e.stopPropagation(); exportProject(p); };
+
+        const renBtn = item.querySelector('.rename-btn');
+        if (renBtn) {
+            renBtn.onclick = (e) => { e.stopPropagation(); renameProject(p); };
+        }
+
+        const delBtn = item.querySelector('.delete-btn');
+        if (delBtn) {
+            delBtn.onclick = (e) => { e.stopPropagation(); deleteProject(p); };
+        }
+        
         list.appendChild(item);
     });
+}
+
+async function renameProject(oldName) {
+    const newName = prompt(`Enter new name for project "${oldName}":`, oldName);
+    if (!newName || newName === oldName) return;
+    if (!/^[a-zA-Z0-9_-]+$/.test(newName)) {
+        alert('Invalid name. Use only letters, numbers, _ and -');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/projects/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ oldName, newName })
+        });
+        const data = await res.json();
+        if (data.success) {
+            if (state.currentProject === oldName) {
+                state.currentProject = newName;
+                const url = new URL(window.location);
+                url.searchParams.set('project', newName);
+                window.history.pushState({}, '', url);
+            }
+            await loadProjects();
+        } else {
+            alert(data.error || 'Rename failed');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Rename failed');
+    }
+}
+
+async function exportProject(name) {
+    // Simply link to the export endpoint which returns a zip
+    const a = document.createElement('a');
+    a.href = `/api/projects/${name}/export`;
+    a.download = `${name}.rbproject.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+async function deleteProject(name) {
+    const backup = confirm(`Recommended: Export project "${name}" before deleting to avoid data loss.\n\nDo you want to EXPORT a backup now?`);
+    if (backup) {
+        await exportProject(name);
+        return; // Stop here, give user time to save backup
+    }
+
+    if (!confirm(`Are you sure you want to PERMANENTLY delete project "${name}"?\nThis cannot be undone.`)) return;
+    
+    try {
+        const res = await fetch(`/api/projects/${name}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            await loadProjects();
+        } else {
+            alert(data.error || 'Delete failed');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Delete failed');
+    }
+}
+
+async function importProject() {
+    const fileInput = document.getElementById('import-project-file');
+    fileInput.onchange = async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch('/api/projects/import', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await res.json();
+            if (result.success) {
+                await loadProjects();
+                alert(`Project "${result.name}" imported successfully!`);
+            } else {
+                alert('Import failed: ' + (result.error || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Import failed');
+        }
+    };
+    fileInput.click();
 }
 
 async function switchProject(name, silent = false) {

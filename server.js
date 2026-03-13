@@ -3,7 +3,8 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { v4 as uuidv4 } from 'uuid'; // Need to install uuid
+import { v4 as uuidv4 } from 'uuid';
+import AdmZip from 'adm-zip';
 import {
     getTodosForDate,
     saveTodo,
@@ -102,6 +103,7 @@ function resolveIconPath(iconPathFromArgs) {
 
 const cli = parseCliArgs(process.argv.slice(2));
 const app = express();
+
 const parsedPort = Number(cli.port);
 const port = Number.isInteger(parsedPort) && parsedPort > 0 ? parsedPort : 3000;
 const iconPath = resolveIconPath(cli.iconPath);
@@ -109,7 +111,8 @@ const appTitle = cli.title?.trim() || 'RB Todo - Minimalist Productivity';
 const appShortTitle = appTitle.length > 30 ? appTitle.slice(0, 30).trim() : appTitle;
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.get('/icon.png', (req, res) => {
     res.sendFile(iconPath);
 });
@@ -354,14 +357,97 @@ app.post('/api/projects/create', async (req, res) => {
     res.json({ success: true, name });
 });
 
-const PORT = parseCliArgs(process.argv).port || 3000;
+app.delete('/api/projects/:name', async (req, res) => {
+    const { name } = req.params;
+    if (name === 'Default') return res.status(400).json({ error: 'Cannot delete Default project' });
+    if (name === currentProject) return res.status(400).json({ error: 'Cannot delete active project' });
+    
+    const projectDir = path.resolve(`projects/${name}`);
+    try {
+        await fs.promises.rm(projectDir, { recursive: true, force: true });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/projects/rename', async (req, res) => {
+    const { oldName, newName } = req.body;
+    if (!newName || !/^[a-zA-Z0-9_-]+$/.test(newName)) {
+        return res.status(400).json({ error: 'Invalid new project name' });
+    }
+    if (oldName === 'Default') return res.status(400).json({ error: 'Cannot rename Default project' });
+
+    const oldDir = path.resolve(`projects/${oldName}`);
+    const newDir = path.resolve(`projects/${newName}`);
+
+    if (fs.existsSync(newDir)) {
+        return res.status(400).json({ error: 'New project name already exists' });
+    }
+
+    try {
+        await fs.promises.rename(oldDir, newDir);
+        if (currentProject === oldName) {
+            currentProject = newName;
+            await saveProjectConfig();
+        }
+        res.json({ success: true, name: newName });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/projects/:name/export', async (req, res) => {
+    const { name } = req.params;
+    const projectDir = path.resolve(`projects/${name}`);
+    if (!fs.existsSync(projectDir)) return res.status(404).send('Project not found');
+
+    try {
+        const zip = new AdmZip();
+        zip.addLocalFolder(projectDir);
+        const buffer = zip.toBuffer();
+        
+        res.set('Content-Type', 'application/zip');
+        res.set('Content-Disposition', `attachment; filename=${name}.rbproject.zip`);
+        res.send(buffer);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/projects/import', upload.single('file'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Zip file required' });
+    
+    // Original filename minus .rbproject.zip
+    let projectName = req.file.originalname.replace(/\.rbproject\.zip$|\.zip$/i, '');
+    projectName = projectName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    
+    const projectDir = path.resolve(`projects/${projectName}`);
+    
+    // If exists, append random suffix
+    let finalPath = projectDir;
+    let finalName = projectName;
+    if (fs.existsSync(projectDir)) {
+        finalName = `${projectName}_${Date.now()}`;
+        finalPath = path.resolve(`projects/${finalName}`);
+    }
+
+    try {
+        const zip = new AdmZip(req.file.path);
+        zip.extractAllTo(finalPath, true);
+        
+        // Cleanup temp upload
+        await fs.promises.unlink(req.file.path);
+        
+        res.json({ success: true, name: finalName });
+    } catch (e) {
+        if (fs.existsSync(req.file.path)) await fs.promises.unlink(req.file.path);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+const PORT = port;
 app.listen(PORT, () => {
     console.log(`Todo server running at http://localhost:${PORT}`);
     console.log(`Current project: ${currentProject}`);
-    if (cli.iconPath) {
-        console.log(`Using custom icon: ${iconPath}`);
-    }
-    if (cli.title) {
-        console.log(`Using custom title: ${appTitle}`);
-    }
 });

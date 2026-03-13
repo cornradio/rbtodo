@@ -13,6 +13,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "dayjs": "^1.11.19",
     "express": "^5.2.1",
     "multer": "^2.0.2",

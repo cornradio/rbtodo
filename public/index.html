@@ -377,9 +377,13 @@
         <div class="search-results-window" style="width: 350px;">
             <div class="search-results-header">
                 <h3>Projects</h3>
-                <button id="add-project-btn" class="icon-btn" title="New Project">+</button>
-                <button id="close-project-modal" class="icon-btn modal-close-btn">✕</button>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                    <button id="import-project-btn" class="side-action-btn">IMPORT</button>
+                    <button id="add-project-btn" class="side-action-btn">NEW</button>
+                    <button id="close-project-modal" class="icon-btn modal-close-btn" style="margin-left: 4px;">✕</button>
+                </div>
             </div>
+            <input type="file" id="import-project-file" hidden accept=".zip,.rbproject.zip">
             <div id="project-list" class="timeline-container" style="max-height: 400px; overflow-y: auto; padding-top: 15px;">
                 <!-- Projects injected here -->
             </div>

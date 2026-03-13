@@ -137,6 +137,24 @@ body.resizing {
     opacity: 0.9;
 }
 
+.side-action-btn {
+    padding: 4px 10px;
+    background: var(--todo-item-hover);
+    color: var(--text-secondary);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    font-weight: 600;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+}
+
+.side-action-btn:hover {
+    background: var(--accent-color);
+    color: white;
+}
+
 /* Mobile Specific Styles */
 .mobile-top-bar {
     display: none;
