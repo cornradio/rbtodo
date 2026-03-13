@@ -45,7 +45,8 @@ export async function getTodosForDate(date) {
         if (file.startsWith(date + '_') && file.endsWith('.json')) {
             try {
                 const content = await fs.readFile(path.join(DATA_DIR, file), 'utf-8');
-                todos.push(JSON.parse(content));
+                const todo = JSON.parse(content);
+                todos.push({ ...todo, date: date });
             } catch (e) {
                 console.error(`Error reading todo file ${file}:`, e);
             }

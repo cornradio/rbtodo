@@ -14,6 +14,7 @@ const state = {
     thisWeekTodos: [],
     isAllTasksView: false,
     isThisWeekView: false,
+    isFutureTasksExpanded: false,
     currentLightboxIndex: -1,
     activeNoteImages: [],
     isCompressionEnabled: localStorage.getItem('img-compression') === 'true',
@@ -268,12 +269,20 @@ function setupEventListeners() {
         }, 1500)();
     });
 
-    // Fix link clicking in contenteditable
+    // Fix link clicking & Handle MD checkboxes in contenteditable
     contentEditor.addEventListener('click', (e) => {
         const link = e.target.closest('a');
         if (link) {
             e.preventDefault();
             window.open(link.href, '_blank');
+            return;
+        }
+
+        if (e.target.tagName === 'INPUT' && e.target.type === 'checkbox') {
+            // Sync checked attribute for innerHTML persistence
+            if (e.target.checked) e.target.setAttribute('checked', 'checked');
+            else e.target.removeAttribute('checked');
+            autoSave();
         }
     });
     contentEditor.addEventListener('mouseup', saveEditorSelection);
@@ -1026,6 +1035,36 @@ function renderAllTasksByWeek(todos, container) {
         grouped.get(key).todos.push(todo);
     }
 
+    // Render Future Group as a collapsible card (NOW AT TOP)
+    if (futureGroup.todos.length > 0) {
+        const section = document.createElement('section');
+        section.className = 'all-week-group future-tasks-group';
+        
+        const header = document.createElement('header');
+        header.className = 'all-week-header clickable-header';
+        header.innerHTML = `
+            <span class="all-week-range">⭐ FUTURE TASKS (Not this week)</span>
+            <div class="all-week-actions">
+                <span class="all-week-count">${futureGroup.todos.length} items</span>
+                <span class="collapse-icon">${state.isFutureTasksExpanded ? '▲' : '▼'}</span>
+            </div>
+        `;
+
+        const list = document.createElement('div');
+        list.className = `todo-items-container ${state.isFutureTasksExpanded ? '' : 'collapsed'}`;
+        renderList(futureGroup.todos, list, false);
+
+        header.onclick = () => {
+            state.isFutureTasksExpanded = !state.isFutureTasksExpanded;
+            list.classList.toggle('collapsed', !state.isFutureTasksExpanded);
+            header.querySelector('.collapse-icon').textContent = state.isFutureTasksExpanded ? '▲' : '▼';
+        };
+
+        section.appendChild(header);
+        section.appendChild(list);
+        container.appendChild(section);
+    }
+
     // Render Weekly Groups
     for (const group of grouped.values()) {
         const weekKey = group.start.format('YYYY-MM-DD');
@@ -1062,35 +1101,6 @@ function renderAllTasksByWeek(todos, container) {
         renderList(group.todos, list, false);
         section.appendChild(list);
 
-        container.appendChild(section);
-    }
-
-    // Render Future Group as a collapsible card
-    if (futureGroup.todos.length > 0) {
-        const section = document.createElement('section');
-        section.className = 'all-week-group future-tasks-group';
-        
-        const header = document.createElement('header');
-        header.className = 'all-week-header clickable-header';
-        header.innerHTML = `
-            <span class="all-week-range">⭐ FUTURE TASKS (Not this week)</span>
-            <div class="all-week-actions">
-                <span class="all-week-count">${futureGroup.todos.length} items</span>
-                <span class="collapse-icon">▼</span>
-            </div>
-        `;
-
-        const list = document.createElement('div');
-        list.className = 'todo-items-container collapsed';
-        renderList(futureGroup.todos, list, false);
-
-        header.onclick = () => {
-            list.classList.toggle('collapsed');
-            header.querySelector('.collapse-icon').textContent = list.classList.contains('collapsed') ? '▼' : '▲';
-        };
-
-        section.appendChild(header);
-        section.appendChild(list);
         container.appendChild(section);
     }
 }
@@ -1232,6 +1242,7 @@ async function openTodo(todo) {
 
     titleInput.value = todo.title || '';
     contentEditor.innerHTML = todo.content || '';
+    convertMDCheckboxes(contentEditor);
     linkify(contentEditor);
 
     // Request Lock
@@ -1565,6 +1576,7 @@ async function manualReloadTodo() {
             state.selectedTodo = updatedTodo;
             titleInput.value = updatedTodo.title || '';
             contentEditor.innerHTML = updatedTodo.content || '';
+            convertMDCheckboxes(contentEditor);
             updateNoteStats();
             setSaveIndicators('success', { flash: true, target: 'editor' });
         }
@@ -2230,6 +2242,48 @@ function createLink() {
             if (link) link.target = "_blank";
         }
     }
+}
+
+function convertMDCheckboxes(element) {
+    const walk = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+    let node;
+    const replacements = [];
+    while (node = walk.nextNode()) {
+        const text = node.nodeValue;
+        if (text.includes('[ ]') || text.includes('[x]')) {
+            replacements.push(node);
+        }
+    }
+
+    replacements.forEach(textNode => {
+        const parent = textNode.parentNode;
+        if (!parent) return;
+        const text = textNode.nodeValue;
+        const parts = text.split(/(\[ \] |\[x\] )/g);
+        const fragment = document.createDocumentFragment();
+        parts.forEach(part => {
+            if (part === '[ ] ') {
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'md-checkbox';
+                cb.style.cssText = 'width:18px; height:18px; margin-right:6px; cursor:pointer; vertical-align:middle;';
+                fragment.appendChild(cb);
+                fragment.appendChild(document.createTextNode(' '));
+            } else if (part === '[x] ') {
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'md-checkbox';
+                cb.checked = true;
+                cb.setAttribute('checked', 'checked');
+                cb.style.cssText = 'width:18px; height:18px; margin-right:6px; cursor:pointer; vertical-align:middle;';
+                fragment.appendChild(cb);
+                fragment.appendChild(document.createTextNode(' '));
+            } else if (part) {
+                fragment.appendChild(document.createTextNode(part));
+            }
+        });
+        parent.replaceChild(fragment, textNode);
+    });
 }
 
 // Start
