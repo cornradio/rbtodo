@@ -310,6 +310,22 @@ function setupEventListeners() {
         }, 1500)();
     });
 
+    let checkboxSelectionCapture = null;
+    contentEditor.addEventListener('mousedown', (e) => {
+        if (e.target.tagName === 'INPUT' && e.target.type === 'checkbox') {
+            const sel = window.getSelection();
+            if (!sel.isCollapsed) {
+                const range = sel.getRangeAt(0);
+                if (range.intersectsNode(e.target)) {
+                    checkboxSelectionCapture = {
+                        range: range.cloneRange(),
+                        target: e.target
+                    };
+                }
+            }
+        }
+    });
+
     // Fix link clicking & Handle MD checkboxes in contenteditable
     contentEditor.addEventListener('click', (e) => {
         const link = e.target.closest('a');
@@ -320,9 +336,26 @@ function setupEventListeners() {
         }
 
         if (e.target.tagName === 'INPUT' && e.target.type === 'checkbox') {
+            const isChecked = e.target.checked;
+
             // Sync checked attribute for innerHTML persistence
-            if (e.target.checked) e.target.setAttribute('checked', 'checked');
+            if (isChecked) e.target.setAttribute('checked', 'checked');
             else e.target.removeAttribute('checked');
+
+            // Multi-select batch toggle
+            if (checkboxSelectionCapture && checkboxSelectionCapture.target === e.target) {
+                const range = checkboxSelectionCapture.range;
+                const allCheckboxes = contentEditor.querySelectorAll('input[type="checkbox"]');
+                allCheckboxes.forEach(cb => {
+                    if (range.intersectsNode(cb)) {
+                        cb.checked = isChecked;
+                        if (isChecked) cb.setAttribute('checked', 'checked');
+                        else cb.removeAttribute('checked');
+                    }
+                });
+                checkboxSelectionCapture = null;
+            }
+
             autoSave();
         }
     });
