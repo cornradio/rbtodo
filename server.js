@@ -16,7 +16,8 @@ import {
     deleteTodo,
     getAllTodos,
     ensureStorageDir,
-    getStorageDir
+    getStorageDir,
+    getUploadsDir
 } from './data-manager.js';
 
 const PROJECT_CONFIG_PATH = path.resolve('projects/projects.json');
@@ -124,7 +125,7 @@ app.get('/api/app-config', (req, res) => {
 });
 app.use(express.static('public'));
 app.use('/uploads', (req, res) => {
-    const filePath = path.join(getStorageDir(), decodeURIComponent(req.path));
+    const filePath = path.join(getUploadsDir(), decodeURIComponent(req.path));
     res.sendFile(filePath, (err) => {
         if (err) res.status(404).end();
     });
@@ -133,7 +134,7 @@ app.use('/uploads', (req, res) => {
 // Multer for uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, getStorageDir() + '/');
+        cb(null, getUploadsDir() + '/');
     },
     filename: (req, file, cb) => {
         const ext = path.extname(file.originalname);

@@ -482,13 +482,32 @@ function setupEventListeners() {
 
     document.getElementById('add-project-btn')?.addEventListener('click', createProject);
     document.getElementById('import-project-btn')?.addEventListener('click', importProject);
-    const openProjects = () => document.getElementById('project-modal').classList.remove('hidden');
-    document.getElementById('project-selector-trigger')?.addEventListener('click', openProjects);
-    document.getElementById('project-display-label')?.addEventListener('click', openProjects);
     
+    const projectQuickMenu = document.getElementById('project-quick-menu');
+    const toggleProjectQuickMenu = (e) => {
+        e.stopPropagation();
+        projectQuickMenu.classList.toggle('hidden');
+    };
+    
+    document.getElementById('project-selector-trigger')?.addEventListener('click', toggleProjectQuickMenu);
+    document.getElementById('project-display-label')?.addEventListener('click', toggleProjectQuickMenu);
+    
+    document.getElementById('show-full-project-modal')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        projectQuickMenu.classList.add('hidden');
+        document.getElementById('project-modal').classList.remove('hidden');
+    });
+
     document.getElementById('close-project-modal')?.addEventListener('click', () => {
         document.getElementById('project-modal').classList.add('hidden');
     });
+    
+    document.addEventListener('click', (e) => {
+        if (projectQuickMenu && !projectQuickMenu.contains(e.target)) {
+            projectQuickMenu.classList.add('hidden');
+        }
+    });
+
     document.getElementById('project-modal')?.addEventListener('click', (e) => {
         if (e.target.id === 'project-modal') e.target.classList.add('hidden');
     });
@@ -1748,7 +1767,32 @@ async function loadProjects() {
         
         updateWindowTitle();
         renderProjects();
+        renderQuickProjects();
     } catch (e) { console.error('Failed to load projects:', e); }
+}
+
+function renderQuickProjects() {
+    const list = document.getElementById('quick-project-list');
+    if (!list) return;
+    list.innerHTML = '';
+    state.projects.forEach(p => {
+        const item = document.createElement('div');
+        const isActive = p === state.currentProject;
+        item.className = `project-quick-item ${isActive ? 'active' : ''}`;
+        
+        item.innerHTML = `
+            <span>${p}</span>
+            ${isActive ? '<span style="font-size: 0.7rem;">●</span>' : ''}
+        `;
+        
+        item.onclick = (e) => {
+            e.stopPropagation();
+            switchProject(p);
+            document.getElementById('project-quick-menu').classList.add('hidden');
+        };
+        
+        list.appendChild(item);
+    });
 }
 
 function renderProjects() {
