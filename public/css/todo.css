@@ -240,30 +240,100 @@
     gap: 12px;
 }
 
+.todo-list-content {
+    padding: 24px;
+}
+
+/* All Tasks View Styling */
+.all-week-group {
+    margin-bottom: 30px;
+    background: var(--sidebar-bg);
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.all-week-group.current-week-highlight {
+    border: 2px solid var(--accent-color);
+    box-shadow: 0 8px 24px var(--accent-soft);
+}
+
+.all-week-header {
+    padding: 16px 20px;
+    background: var(--bg-color);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.current-week-highlight .all-week-header {
+    background: var(--accent-soft);
+}
+
+.this-week-badge {
+    background: var(--accent-color);
+    color: white;
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 700;
+    margin-right: 10px;
+}
+
+.all-week-range {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+}
+
+.future-tasks-group {
+    opacity: 0.9;
+    border-style: dashed;
+}
+
+.clickable-header {
+    cursor: pointer;
+}
+
+.clickable-header:hover {
+    background: var(--todo-item-hover);
+}
+
+.collapse-icon {
+    font-size: 0.7rem;
+    margin-left: 10px;
+    transition: transform 0.3s ease;
+}
+
+.todo-items-container.collapsed {
+    display: none;
+}
+
 @media (max-width: 768px) {
     .todo-list-section {
         padding: 0;
     }
 
     .todo-list-content {
-        padding: 20px;
-    }
-
-    .todo-list-footer {
-        padding-bottom: calc(12px + env(safe-area-inset-bottom));
+        padding: 12px;
     }
 
     .todo-item {
-        padding: 12px;
-        margin-bottom: 8px;
+        padding: 8px 12px;
+        margin-bottom: 4px;
+        border-radius: 8px;
     }
 
     .todo-title {
-        font-size: 0.95rem;
+        font-size: 0.9rem;
     }
 
-    .section-header h2 {
-        font-size: 0.8rem;
+    .todo-checkbox {
+        width: 18px;
+        height: 18px;
     }
-
 }

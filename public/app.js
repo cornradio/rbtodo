@@ -9,9 +9,11 @@ const state = {
     isFullscreen: false,
     isSidebarCollapsed: false,
     calendarViewDate: dayjs().startOf('month'),
-    isAllTasksView: false,
     allTodos: [],
     futureTodos: [],
+    thisWeekTodos: [],
+    isAllTasksView: false,
+    isThisWeekView: false,
     currentLightboxIndex: -1,
     activeNoteImages: [],
     isCompressionEnabled: localStorage.getItem('img-compression') === 'true',
@@ -156,6 +158,7 @@ async function init() {
     loadTodos(); // No await needed if we don't want to block
     checkPrefersColorScheme();
     applyStoredSettings();
+    updateSidebarCounts();
     initResizer();
     setupImageResizing();
 
@@ -228,14 +231,41 @@ function setupEventListeners() {
 
     // Paste image support
     contentEditor.addEventListener('paste', handlePaste);
-    contentEditor.addEventListener('input', debounce(() => {
-        console.log('Auto-saving due to input...');
-        autoSave();
-    }, 1500));
-
     contentEditor.addEventListener('blur', () => {
         linkify(contentEditor);
         autoSave();
+    });
+
+    contentEditor.addEventListener('input', (e) => {
+        // MD style checkbox: [ ] or [x]
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const text = range.startContainer.textContent || "";
+            const offset = range.startOffset;
+            
+            // Check if we just typed a space after [ ] or [x]
+            const snippet = text.substring(offset - 4, offset);
+            if (snippet === '[ ] ' || snippet === '[x] ') {
+                e.preventDefault();
+                const isChecked = snippet === '[x] ';
+                
+                // Replace the text with a checkbox
+                // Simple implementation using execCommand to keep undo history
+                const backspaces = 4;
+                for(let i=0; i<backspaces; i++) document.execCommand('delete', false, null);
+                
+                const checkboxHtml = isChecked 
+                    ? '<input type="checkbox" checked style="width:18px; height:18px; margin-right:6px; cursor:pointer;">' 
+                    : '<input type="checkbox" style="width:18px; height:18px; margin-right:6px; cursor:pointer;">';
+                document.execCommand('insertHTML', false, checkboxHtml + '&nbsp;');
+            }
+        }
+        
+        debounce(() => {
+            console.log('Auto-saving due to input...');
+            autoSave();
+        }, 1500)();
     });
 
     // Fix link clicking in contenteditable
@@ -299,6 +329,16 @@ function setupEventListeners() {
     accentColorPicker.addEventListener('input', (e) => {
         updateAccentColor(e.target.value);
     });
+
+    document.getElementById('this-week-btn').addEventListener('click', showThisWeek);
+    
+    const copyMenuBtn = document.getElementById('copy-menu-btn');
+    const copyDropdown = document.getElementById('copy-dropdown');
+    copyMenuBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyDropdown.classList.toggle('hidden');
+    });
+    document.addEventListener('click', () => copyDropdown?.classList.add('hidden'));
 
     // Search
     openSearchBtn.addEventListener('click', openSearch);
@@ -366,7 +406,17 @@ function setupEventListeners() {
     // Link Creation
     document.getElementById('create-link-btn')?.addEventListener('click', createLink);
 
-    document.getElementById('copy-html-btn').addEventListener('click', copyAsHtml);
+    document.getElementById('copy-html-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyAsHtml();
+        copyDropdown.classList.add('hidden');
+    });
+    
+    document.getElementById('copy-text-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyAsPlainText();
+        copyDropdown.classList.add('hidden');
+    });
 
     // Date Picker for Todo
     const noteDateEl = document.getElementById('note-date');
@@ -602,7 +652,29 @@ async function loadTodos() {
 
         renderTodoLists();
         updateDateTitle();
+        updateSidebarCounts();
     } catch (e) { console.error(e); }
+}
+
+async function updateSidebarCounts() {
+    try {
+        const res = await fetch('/api/todos/all');
+        const results = await res.json();
+        
+        // Update All Tasks count
+        const allCountEl = document.getElementById('sidebar-all-count');
+        if (allCountEl) allCountEl.textContent = results.length;
+
+        // Update This Week count
+        const startOfWeek = dayjs().startOf('isoWeek');
+        const endOfWeek = startOfWeek.add(6, 'day').endOf('day');
+        const weekTodos = results.filter(todo => {
+            const d = dayjs(todo.date || todo.createdAt);
+            return (d.isAfter(startOfWeek) || d.isSame(startOfWeek)) && (d.isBefore(endOfWeek) || d.isSame(endOfWeek));
+        });
+        const weekCountEl = document.getElementById('sidebar-week-count');
+        if (weekCountEl) weekCountEl.textContent = weekTodos.length;
+    } catch (e) { console.error('Failed to update counts:', e); }
 }
 
 function getTodoSaveQueue(todoId) {
@@ -640,26 +712,9 @@ async function performTodoSave(todo) {
             await new Promise(r => setTimeout(r, 600 - elapsed));
         }
 
-        if (result.status === 'conflict_merged') {
-            // A conflict occurred and was merged on the server
-            setSaveIndicators('conflict');
-
-            // Update local state with the merged content and new timestamp
-            state.selectedTodo.content = result.mergedContent;
-            state.selectedTodo.updatedAt = result.updatedAt;
-
-            // Refresh editor UI if still open
-            if (state.selectedTodo.id === todo.id) {
-                contentEditor.innerHTML = result.mergedContent;
-                updateNoteStats();
-            }
-
-            alert('Note clash! Someone else edited this note. We\'ve kept both versions - see the bottom of the note for the conflicting content.');
-        } else {
-            setSaveIndicators('success', { flash: true });
-            if (result.updatedAt) {
-                todo.updatedAt = result.updatedAt;
-            }
+        setSaveIndicators('success', { flash: true });
+        if (result.updatedAt) {
+            todo.updatedAt = result.updatedAt;
         }
 
         await fetchHighlightedDates();
@@ -811,6 +866,17 @@ function renderTodoLists() {
         return;
     }
 
+    if (state.isThisWeekView) {
+        renderAllTasksByWeek(state.thisWeekTodos, allTodosEl);
+        oldTodosSection.classList.add('hidden');
+        futureTodosSection.classList.add('hidden');
+        todayTodosSection.classList.add('hidden');
+        allTodosSection.classList.remove('hidden');
+
+        listTotalStats.textContent = 'This Week';
+        return;
+    }
+
     oldTodosSection.classList.remove('hidden');
     futureTodosSection.classList.remove('hidden');
     todayTodosSection.classList.remove('hidden');
@@ -920,6 +986,9 @@ function renderAllTasksByWeek(todos, container) {
         return;
     }
 
+    const today = dayjs().startOf('day');
+    const currentWeekStart = dayjs().startOf('isoWeek').format('YYYY-MM-DD');
+
     const sorted = [...todos].sort((a, b) => {
         const aTime = dayjs(a.date || a.createdAt || 0).valueOf();
         const bTime = dayjs(b.date || b.createdAt || 0).valueOf();
@@ -928,29 +997,51 @@ function renderAllTasksByWeek(todos, container) {
     });
 
     const grouped = new Map();
+    const futureGroup = {
+        title: 'FUTURE ITEMS',
+        todos: []
+    };
+
     for (const todo of sorted) {
         const d = dayjs(todo.date || todo.createdAt);
+        
+        // FUTURE CHECK: If the todo date is beyond the current week's end, it's future
         const weekStart = d.startOf('isoWeek');
+        const weekEnd = weekStart.add(6, 'day');
+        const currentWeekEnd = dayjs().startOf('isoWeek').add(6, 'day');
+
+        if (d.isAfter(currentWeekEnd)) {
+            futureGroup.todos.push(todo);
+            continue;
+        }
+
         const key = weekStart.format('YYYY-MM-DD');
         if (!grouped.has(key)) {
             grouped.set(key, {
                 start: weekStart,
-                end: weekStart.add(6, 'day'),
+                end: weekEnd,
                 todos: []
             });
         }
         grouped.get(key).todos.push(todo);
     }
 
+    // Render Weekly Groups
     for (const group of grouped.values()) {
+        const weekKey = group.start.format('YYYY-MM-DD');
+        const isCurrentWeek = weekKey === currentWeekStart;
+
         const section = document.createElement('section');
-        section.className = 'all-week-group';
+        section.className = `all-week-group ${isCurrentWeek ? 'current-week-highlight' : ''}`;
 
         const header = document.createElement('header');
         header.className = 'all-week-header';
+        
         const left = document.createElement('span');
         left.className = 'all-week-range';
-        left.textContent = `${group.start.format('YYYY-MM-DD')} ~ ${group.end.format('MM-DD')}`;
+        left.innerHTML = isCurrentWeek 
+            ? `<span class="this-week-badge">THIS WEEK</span> ${group.start.format('YYYY-MM-DD')} ~ ${group.end.format('MM-DD')}`
+            : `${group.start.format('YYYY-MM-DD')} ~ ${group.end.format('MM-DD')}`;
 
         const right = document.createElement('div');
         right.className = 'all-week-actions';
@@ -971,6 +1062,35 @@ function renderAllTasksByWeek(todos, container) {
         renderList(group.todos, list, false);
         section.appendChild(list);
 
+        container.appendChild(section);
+    }
+
+    // Render Future Group as a collapsible card
+    if (futureGroup.todos.length > 0) {
+        const section = document.createElement('section');
+        section.className = 'all-week-group future-tasks-group';
+        
+        const header = document.createElement('header');
+        header.className = 'all-week-header clickable-header';
+        header.innerHTML = `
+            <span class="all-week-range">⭐ FUTURE TASKS (Not this week)</span>
+            <div class="all-week-actions">
+                <span class="all-week-count">${futureGroup.todos.length} items</span>
+                <span class="collapse-icon">▼</span>
+            </div>
+        `;
+
+        const list = document.createElement('div');
+        list.className = 'todo-items-container collapsed';
+        renderList(futureGroup.todos, list, false);
+
+        header.onclick = () => {
+            list.classList.toggle('collapsed');
+            header.querySelector('.collapse-icon').textContent = list.classList.contains('collapsed') ? '▼' : '▲';
+        };
+
+        section.appendChild(header);
+        section.appendChild(list);
         container.appendChild(section);
     }
 }
@@ -1010,7 +1130,9 @@ function handleDrop(targetIsOld, toIndex) {
 // --- Actions ---
 function selectDate(date) {
     state.isAllTasksView = false;
+    state.isThisWeekView = false;
     document.getElementById('all-tasks-btn').classList.remove('active');
+    document.getElementById('this-week-btn').classList.remove('active');
     state.selectedDate = date;
     renderTimeline();
     renderCalendar();
@@ -1099,6 +1221,8 @@ async function openTodo(todo) {
     }
 
     state.selectedTodo = todo;
+    if (todo.date) state.selectedDate = todo.date.split(' ')[0];
+    
     editorPane.classList.remove('hidden-right');
     editorPane.classList.remove('hidden'); // Show resizer
     editorPane.classList.add('mobile-open');
@@ -1523,14 +1647,16 @@ async function showAllTasks() {
 
         state.allTodos = results;
         state.isAllTasksView = true;
+        state.isThisWeekView = false;
 
         // UI updates for active state
         document.getElementById('all-tasks-btn').classList.add('active');
+        document.getElementById('this-week-btn').classList.remove('active');
         document.getElementById('sidebar-all-count').textContent = results.length;
 
         // Remove active from any timeline items
         document.querySelectorAll('.timeline-item').forEach(el => {
-            if (el.id !== 'all-tasks-btn') el.classList.remove('active');
+            if (el.id !== 'all-tasks-btn' && el.id !== 'this-week-btn') el.classList.remove('active');
         });
 
         renderTodoLists();
@@ -1586,6 +1712,53 @@ async function uploadAndInsertImage(file) {
     } catch (e) {
         console.error(e);
         setSaveIndicators('error', { target: 'editor' });
+    }
+}
+
+async function showThisWeek() {
+    try {
+        const res = await fetch('/api/todos/all');
+        const results = await res.json();
+
+        const startOfWeek = dayjs().startOf('isoWeek');
+        const endOfWeek = startOfWeek.add(6, 'day').endOf('day');
+
+        state.thisWeekTodos = results.filter(todo => {
+            const d = dayjs(todo.date || todo.createdAt);
+            return (d.isAfter(startOfWeek) || d.isSame(startOfWeek)) && (d.isBefore(endOfWeek) || d.isSame(endOfWeek));
+        });
+
+        state.isAllTasksView = false;
+        state.isThisWeekView = true;
+
+        // UI updates
+        document.getElementById('this-week-btn').classList.add('active');
+        document.getElementById('sidebar-week-count').textContent = state.thisWeekTodos.length;
+        
+        // Remove active from others
+        document.getElementById('all-tasks-btn').classList.remove('active');
+        document.querySelectorAll('.timeline-item').forEach(el => {
+            if (el.id !== 'this-week-btn') el.classList.remove('active');
+        });
+
+        renderTodoLists();
+        document.querySelector('.todo-list-content').scrollTop = 0;
+    } catch (e) {
+        console.error(e);
+        alert('Failed to load this week\'s tasks.');
+    }
+}
+
+async function copyAsPlainText() {
+    const text = contentEditor.innerText;
+    try {
+        await navigator.clipboard.writeText(text);
+        const btn = document.getElementById('copy-menu-btn');
+        const originalText = btn.textContent;
+        btn.textContent = '✅ Copied Text!';
+        setTimeout(() => btn.textContent = originalText, 2000);
+    } catch (err) {
+        console.error('Failed to copy text:', err);
     }
 }
 
@@ -1798,10 +1971,11 @@ function updateNoteStats() {
     const noteDate = document.getElementById('note-date');
     if (noteDate && state.selectedTodo) {
         let dateStr = "";
-        if (state.selectedTodo.createdAt) {
-            dateStr = dayjs(state.selectedTodo.createdAt).format('YYYY-MM-DD');
-        } else if (state.selectedTodo.date) {
+        // Prioritize date over createdAt for the note footer
+        if (state.selectedTodo.date) {
             dateStr = dayjs(state.selectedTodo.date).format('YYYY-MM-DD');
+        } else if (state.selectedTodo.createdAt) {
+            dateStr = dayjs(state.selectedTodo.createdAt).format('YYYY-MM-DD');
         }
         noteDate.textContent = dateStr || '';
     }
