@@ -1252,9 +1252,16 @@ async function handleExport(targetDate = state.selectedDate) {
                     const status = t.completed ? '[x]' : '[ ]';
                     text += `${status} ${t.title || 'Untitled'}\n`;
                     if (t.content) {
-                        const cleanContent = t.content.replace(/<[^>]*>/g, '').trim();
+                        const cleanContent = t.content
+                            .replace(/<br\s*\/?>/gi, '\n')
+                            .replace(/<\/p>|<\/div>/gi, '\n')
+                            .replace(/<[^>]*>/g, '')
+                            .trim();
                         if (cleanContent) {
-                            text += `   > ${cleanContent.substring(0, 200)}${cleanContent.length > 200 ? '...' : ''}\n`;
+                            text += cleanContent.split('\n')
+                                .filter(line => line.trim())
+                                .map(line => `   > ${line.trim()}`)
+                                .join('\n') + '\n';
                         }
                     }
                 });
@@ -2417,13 +2424,18 @@ function toggleCheckboxesOnSelection() {
             }
         });
     } else {
-        // Toggle check state for all
-        const someUnchecked = blocks.some(b => !b.querySelector('input.md-checkbox').checked);
+        // If all have checkboxes, REMOVE them from the line
         blocks.forEach(b => {
             const cb = b.querySelector('input.md-checkbox');
-            cb.checked = someUnchecked;
-            if (someUnchecked) cb.setAttribute('checked', 'checked');
-            else cb.removeAttribute('checked');
+            if (cb) {
+                // Clean up the trailing space/nbsp inserted by the tool
+                const next = cb.nextSibling;
+                if (next && next.nodeType === 3) {
+                    next.nodeValue = next.nodeValue.replace(/^[\s\u00A0]+/, '');
+                }
+                cb.remove();
+                if (b.innerHTML === '') b.innerHTML = '<br>';
+            }
         });
     }
     
