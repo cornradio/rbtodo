@@ -221,7 +221,7 @@
 
 .todo-list-footer {
     flex-shrink: 0;
-    padding: 12px 24px;
+    padding: 4px 12px;
     background-color: var(--sidebar-bg);
     border-top: 1px solid var(--border-color);
     display: flex;
@@ -230,14 +230,14 @@
 }
 
 .footer-left {
-    font-size: 0.8rem;
+    font-size: 0.68rem;
     color: var(--text-secondary);
 }
 
 .footer-right {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 6px;
 }
 
 .todo-list-content {

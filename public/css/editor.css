@@ -117,10 +117,10 @@
     background: var(--todo-item-bg);
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    padding: 6px 10px;
+    padding: 4px 8px;
     margin-top: 10px;
     /* Space from content above */
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     /* Space from footer below */
     flex-shrink: 0;
 }
@@ -138,11 +138,11 @@
 .toolbar-btn {
     background: none;
     border: none;
-    padding: 4px 8px;
+    padding: 3px 6px;
     border-radius: 4px;
     cursor: pointer;
     color: var(--text-secondary);
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     font-weight: 600;
     transition: all 0.2s ease;
     display: flex;
@@ -168,8 +168,8 @@
 }
 
 .color-buttons .toolbar-btn {
-    min-width: 24px;
-    padding: 2px 4px;
+    min-width: 22px;
+    padding: 2px 3px;
 }
 
 .color-red {
@@ -326,26 +326,26 @@
 
 .editor-footer-container {
     flex-shrink: 0;
-    padding: 8px 20px;
+    padding: 2px 10px;
     background-color: var(--sidebar-bg);
     border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    min-height: 48px;
-    gap: 12px;
+    min-height: 26px;
+    gap: 6px;
 }
 
 .editor-footer-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .footer-left {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     position: relative;
     flex-wrap: wrap;
 }
@@ -360,7 +360,7 @@
 }
 
 .compression-status .toolbar-label {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     opacity: 0.75;
 }
 
@@ -422,16 +422,31 @@
 }
 
 .note-stats {
-    font-size: 0.72rem;
+    font-size: 0.66rem;
     color: var(--text-secondary);
     margin-right: 0;
     font-weight: 600;
     background: var(--todo-item-hover);
     border: 1px solid var(--border-color);
     border-radius: 999px;
-    padding: 2px 8px;
-    line-height: 1.4;
+    padding: 1px 6px;
+    line-height: 1.2;
 }
+
+.editor-container {
+    position: relative;
+}
+
+.editor-container.toolbar-hidden .editor-toolbar {
+    opacity: 0;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
 
 .waiting-stat {
     position: relative;
@@ -553,9 +568,9 @@
 }
 
 .save-status-box {
-    width: 10px;
-    height: 10px;
-    min-width: 10px;
+    width: 8px;
+    height: 8px;
+    min-width: 8px;
     border-radius: 50%;
     background: #9aa0a6;
     transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
@@ -716,11 +731,12 @@
     }
 
     .editor-footer-container {
-        padding-bottom: calc(20px + env(safe-area-inset-bottom));
+        padding-bottom: calc(10px + env(safe-area-inset-bottom));
         background: var(--bg-color);
         position: sticky;
         bottom: 0;
     }
+
 
     .title-input {
         font-size: 1.4rem;

@@ -471,6 +471,11 @@ function setupEventListeners() {
         copyAsPlainText();
         copyDropdown.classList.add('hidden');
     });
+    const toolbarToggle = document.getElementById('toolbar-toggle');
+    toolbarToggle?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('editor-container')?.classList.toggle('toolbar-hidden');
+    });
 
     // Search
     openSearchBtn.addEventListener('click', openSearch);
