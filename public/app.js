@@ -113,6 +113,7 @@ const imageUploadInput = document.getElementById('image-upload');
 const insertImageBtn = document.getElementById('insert-image-btn');
 let lastEditorRange = null;
 const statusPulseTimers = { editor: null, list: null };
+let lastInlineHtmlExport = '';
 
 function setSaveIndicators(status = 'idle', { flash = false, target = 'both' } = {}) {
     const targets = [];
@@ -460,6 +461,11 @@ function setupEventListeners() {
         copyAsHtml();
         copyDropdown.classList.add('hidden');
     });
+    document.getElementById('download-html-btn')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await downloadInlineHtml();
+        copyDropdown.classList.add('hidden');
+    });
     document.getElementById('copy-text-btn')?.addEventListener('click', (e) => {
         e.stopPropagation();
         copyAsPlainText();
@@ -564,18 +570,6 @@ function setupEventListeners() {
     // Link Creation
     document.getElementById('create-link-btn')?.addEventListener('click', createLink);
 
-    document.getElementById('copy-html-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        copyAsHtml();
-        copyDropdown.classList.add('hidden');
-    });
-    
-    document.getElementById('copy-text-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        copyAsPlainText();
-        copyDropdown.classList.add('hidden');
-    });
-
     // Date Picker for Todo
     const noteDateEl = document.getElementById('note-date');
     const datePicker = document.getElementById('todo-date-picker');
@@ -624,6 +618,10 @@ function setupEventListeners() {
         setTimeout(() => {
             document.getElementById('copy-fallback-btn').textContent = 'Copy to Clipboard (Fallback Method)';
         }, 2000);
+    });
+    document.getElementById('download-html-fallback-btn')?.addEventListener('click', () => {
+        if (!lastInlineHtmlExport) return;
+        downloadHtmlFile(lastInlineHtmlExport);
     });
 
     // All Tasks
@@ -2143,53 +2141,22 @@ async function showThisWeek() {
 
 async function copyAsHtml() {
     if (state.isReadOnly) return;
-    
-    // Fallback for non-secure contexts (HTTP)
-    async function fallbackCopy(html) {
-        // execCommand fallback (less reliable for HTML but best we can do for HTTP)
-        const div = document.createElement('div');
-        div.innerHTML = html;
-        div.style.position = 'fixed';
-        div.style.opacity = '0';
-        div.style.pointerEvents = 'none';
-        document.body.appendChild(div);
-        
-        const range = document.createRange();
-        range.selectNode(div);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-        
-        try {
-            const success = document.execCommand('copy');
-            selection.removeAllRanges();
-            document.body.removeChild(div);
-            return success;
-        } catch (err) {
-            console.error('execCommand copy failed:', err);
-            document.body.removeChild(div);
-            return false;
-        }
-    }
 
-    const html = contentEditor.innerHTML;
+    const html = await buildInlineHtml();
+    lastInlineHtmlExport = html;
     try {
         if (navigator.clipboard && navigator.clipboard.write) {
-            const type = 'text/html';
-            const blob = new Blob([html], { type });
-            const data = [new ClipboardItem({ [type]: blob })];
+            const htmlBlob = new Blob([html], { type: 'text/html' });
+            const textBlob = new Blob([contentEditor.innerText], { type: 'text/plain' });
+            const data = [new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })];
             await navigator.clipboard.write(data);
         } else {
             throw new Error('Clipboard API unavailable');
         }
         setSaveIndicators('success', { flash: true, target: 'editor' });
     } catch (err) {
-        if (await fallbackCopy(html)) {
-            setSaveIndicators('success', { flash: true, target: 'editor' });
-        } else {
-            console.error('Copy failed:', err);
-            alert('Copy failed. This browser may require a secure connection (HTTPS) or your manual selection.');
-        }
+        console.error('Copy failed:', err);
+        showCopyFallback(html);
     }
 }
 
@@ -2216,6 +2183,96 @@ async function copyAsPlainText() {
         console.error('Copy plain text failed:', err);
         alert('Copy failed.');
     }
+}
+
+async function downloadInlineHtml() {
+    if (state.isReadOnly) return;
+    const html = await buildInlineHtml();
+    lastInlineHtmlExport = html;
+    downloadHtmlFile(html);
+    setSaveIndicators('success', { flash: true, target: 'editor' });
+}
+
+async function buildInlineHtml() {
+    const clone = contentEditor.cloneNode(true);
+    const images = Array.from(clone.querySelectorAll('img'));
+    if (images.length > 0) {
+        await Promise.all(images.map(async (img) => {
+            try {
+                const res = await fetch(img.src);
+                const blob = await res.blob();
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = () => reject(new Error('Failed to read image data'));
+                    reader.readAsDataURL(blob);
+                });
+                img.src = dataUrl;
+            } catch (e) {
+                console.warn('Failed to inline image:', e);
+            }
+        }));
+    }
+
+    const title = (titleInput?.value || 'RB Todo').trim() || 'RB Todo';
+    const body = clone.innerHTML;
+    return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; padding: 24px; color: #111; }
+    img { max-width: 100%; height: auto; }
+    a { color: #0a84ff; }
+  </style>
+</head>
+<body>
+${body}
+</body>
+</html>`;
+}
+
+function showCopyFallback(html) {
+    const fallbackModal = document.getElementById('copy-fallback-modal');
+    const fallbackTextarea = document.getElementById('copy-fallback-textarea');
+    if (fallbackTextarea) fallbackTextarea.value = html;
+    fallbackModal?.classList.remove('hidden');
+}
+
+function downloadHtmlFile(html, filenameOverride = null) {
+    const filename = filenameOverride || makeSafeFilename(titleInput?.value || 'rbtodo-note') + '.html';
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function makeSafeFilename(name) {
+    return String(name || 'rbtodo-note')
+        .trim()
+        .replace(/[^\w\s.-]/g, '')
+        .replace(/\s+/g, '-')
+        .slice(0, 80) || 'rbtodo-note';
+}
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (ch) => {
+        switch (ch) {
+            case '&': return '&amp;';
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '"': return '&quot;';
+            case "'": return '&#39;';
+            default: return ch;
+        }
+    });
 }
 
 function saveEditorSelection() {
