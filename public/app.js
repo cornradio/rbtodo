@@ -31,6 +31,24 @@ const state = {
     appTitle: 'RB Todo'
 };
 
+const originalFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input?.url;
+    const isProjectScoped = typeof url === 'string' && (url.startsWith('/api/') || url.startsWith('/uploads/'));
+    if (!isProjectScoped) return originalFetch(input, init);
+
+    const headers = new Headers(
+        init.headers || (input instanceof Request ? input.headers : undefined)
+    );
+    headers.set('X-Project', state.currentProject);
+    headers.set('X-Session-Id', state.sessionId);
+
+    if (input instanceof Request) {
+        return originalFetch(new Request(input, { headers }));
+    }
+    return originalFetch(input, { ...init, headers });
+};
+
 function migrateAccentColors() {
     const oldColor = localStorage.getItem('accent-color');
     if (oldColor && !localStorage.getItem('accent-color-light')) {
@@ -176,9 +194,12 @@ async function init() {
     // Check URL for project param
     const urlParams = new URLSearchParams(window.location.search);
     const targetProject = urlParams.get('project');
-    
+
+    if (targetProject) {
+        state.currentProject = targetProject;
+    }
     await loadProjects();
-    
+
     if (targetProject && targetProject !== state.currentProject) {
         await switchProject(targetProject, true);
     }
@@ -834,7 +855,10 @@ async function updateSidebarCounts() {
             return (d.isAfter(startOfWeek) || d.isSame(startOfWeek)) && (d.isBefore(endOfWeek) || d.isSame(endOfWeek));
         });
         const weekCountEl = document.getElementById('sidebar-week-count');
-        if (weekCountEl) weekCountEl.textContent = weekTodos.length;
+        if (weekCountEl) {
+            const completed = weekTodos.filter(t => t.completed).length;
+            weekCountEl.textContent = `${completed}/${weekTodos.length}`;
+        }
     } catch (e) { console.error('Failed to update counts:', e); }
 }
 
@@ -1400,6 +1424,7 @@ async function openTodo(todo) {
 
     titleInput.value = todo.title || '';
     contentEditor.innerHTML = todo.content || '';
+    ensureProjectImageParams();
     convertMDCheckboxes(contentEditor);
     linkify(contentEditor);
 
@@ -1497,6 +1522,7 @@ function startAutoUnlockCheck() {
                     state.selectedTodo = serverTodo;
                     titleInput.value = serverTodo.title || '';
                     contentEditor.innerHTML = serverTodo.content || '';
+                    ensureProjectImageParams();
                     linkify(contentEditor);
                     updateNoteStats();
                 }
@@ -1618,6 +1644,7 @@ async function refreshCurrentNote() {
 
             titleInput.value = serverTodo.title || '';
             contentEditor.innerHTML = serverTodo.content || '';
+            ensureProjectImageParams();
             linkify(contentEditor);
             updateNoteStats();
 
@@ -1734,6 +1761,7 @@ async function manualReloadTodo() {
             state.selectedTodo = updatedTodo;
             titleInput.value = updatedTodo.title || '';
             contentEditor.innerHTML = updatedTodo.content || '';
+            ensureProjectImageParams();
             convertMDCheckboxes(contentEditor);
             updateNoteStats();
             setSaveIndicators('success', { flash: true, target: 'editor' });
@@ -1755,7 +1783,7 @@ function openSearch() {
 
 async function loadProjects() {
     try {
-        const res = await fetch('/api/projects');
+        const res = await fetch(`/api/projects?project=${encodeURIComponent(state.currentProject)}`);
         const data = await res.json();
         state.projects = data.projects;
         state.currentProject = data.currentProject;
@@ -1949,12 +1977,17 @@ async function switchProject(name, silent = false) {
         const data = await res.json();
         if (data.success) {
             state.currentProject = data.currentProject;
-            if (!silent) {
-                // Update URL for permanence if desired or just reload
-                const url = new URL(window.location);
-                url.searchParams.set('project', name);
-                window.location.href = url.toString();
-            }
+            const url = new URL(window.location);
+            url.searchParams.set('project', name);
+            window.history.replaceState({}, '', url.toString());
+
+            await loadProjects();
+            await loadTodos();
+            await fetchHighlightedDates();
+            await fetchTimelineStats();
+            renderTimeline();
+            renderCalendar();
+            updateSidebarCounts();
         }
     } catch (e) { console.error('Switch project failed:', e); }
 }
@@ -2128,7 +2161,8 @@ async function showThisWeek() {
 
         // UI updates
         document.getElementById('this-week-btn').classList.add('active');
-        document.getElementById('sidebar-week-count').textContent = state.thisWeekTodos.length;
+        const completed = state.thisWeekTodos.filter(t => t.completed).length;
+        document.getElementById('sidebar-week-count').textContent = `${completed}/${state.thisWeekTodos.length}`;
         
         // Remove active from others
         document.getElementById('all-tasks-btn').classList.remove('active');
@@ -2524,6 +2558,18 @@ function updateNoteStats() {
         }
         noteDate.textContent = dateStr || '';
     }
+}
+
+function ensureProjectImageParams() {
+    if (!contentEditor) return;
+    const images = contentEditor.querySelectorAll('img');
+    images.forEach((img) => {
+        const rawSrc = img.getAttribute('src') || '';
+        if (!rawSrc.startsWith('/uploads/')) return;
+        if (rawSrc.includes('project=')) return;
+        const joiner = rawSrc.includes('?') ? '&' : '?';
+        img.setAttribute('src', `${rawSrc}${joiner}project=${encodeURIComponent(state.currentProject)}`);
+    });
 }
 
 // --- Lightbox & Image Gallery ---

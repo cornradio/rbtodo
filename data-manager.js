@@ -2,11 +2,16 @@ import fs from 'fs/promises';
 import path from 'path';
 import dayjs from 'dayjs';
 
-let storageDir = path.resolve('projects/Default');
+const DEFAULT_PROJECT = 'Default';
 
-// Ensure data directory exists
-export async function ensureStorageDir(dir) {
-    if (dir) storageDir = dir;
+function resolveProjectDir(projectName) {
+    const safeProject = projectName || DEFAULT_PROJECT;
+    return path.resolve('projects', safeProject);
+}
+
+// Ensure data directory exists (per project)
+export async function ensureStorageDir(projectName) {
+    const storageDir = resolveProjectDir(projectName);
     try {
         await fs.mkdir(storageDir, { recursive: true });
         await fs.mkdir(path.join(storageDir, 'data'), { recursive: true });
@@ -14,19 +19,19 @@ export async function ensureStorageDir(dir) {
     } catch (e) {
         console.error('Error creating storage directories:', e);
     }
-}
-await ensureStorageDir();
-
-export function getStorageDir() {
     return storageDir;
 }
 
-export function getDataDir() {
-    return path.join(storageDir, 'data');
+export function getStorageDir(projectName) {
+    return resolveProjectDir(projectName);
 }
 
-export function getUploadsDir() {
-    return path.join(storageDir, 'uploads');
+export function getDataDir(projectName) {
+    return path.join(resolveProjectDir(projectName), 'data');
+}
+
+export function getUploadsDir(projectName) {
+    return path.join(resolveProjectDir(projectName), 'uploads');
 }
 
 /**
@@ -34,8 +39,8 @@ export function getUploadsDir() {
  * Filename: YYYY-MM-DD_[ID].json
  */
 
-function getTodoFilePath(date, id) {
-    return path.join(getDataDir(), `${date}_${id}.json`);
+function getTodoFilePath(date, id, projectName) {
+    return path.join(getDataDir(projectName), `${date}_${id}.json`);
 }
 
 /**
@@ -47,10 +52,10 @@ async function atomicWriteJson(filePath, data) {
     await fs.rename(tempPath, filePath);
 }
 
-export async function getTodosForDate(date) {
+export async function getTodosForDate(date, projectName) {
     let files = [];
     try {
-        files = await fs.readdir(getDataDir());
+        files = await fs.readdir(getDataDir(projectName));
     } catch (e) {
         return { todos: [] };
     }
@@ -59,7 +64,7 @@ export async function getTodosForDate(date) {
     for (const file of files) {
         if (file.startsWith(date + '_') && file.endsWith('.json')) {
             try {
-                const content = await fs.readFile(path.join(getDataDir(), file), 'utf-8');
+                const content = await fs.readFile(path.join(getDataDir(projectName), file), 'utf-8');
                 const todo = JSON.parse(content);
                 todos.push({ ...todo, date: date });
             } catch (e) {
@@ -73,8 +78,8 @@ export async function getTodosForDate(date) {
     return { todos };
 }
 
-export async function saveTodo(date, todo, expectedUpdatedAt = null) {
-    const filePath = getTodoFilePath(date, todo.id);
+export async function saveTodo(date, todo, expectedUpdatedAt = null, projectName) {
+    const filePath = getTodoFilePath(date, todo.id, projectName);
     const now = Date.now();
     let finalTodo = { ...todo, updatedAt: now };
 
@@ -102,11 +107,11 @@ export async function saveTodo(date, todo, expectedUpdatedAt = null) {
     return { status: 'saved', updatedAt: now };
 }
 
-export async function updateTodosOrder(date, todos) {
+export async function updateTodosOrder(date, todos, projectName) {
     // Update the 'order' field in each individual file
     for (let i = 0; i < todos.length; i++) {
         const todo = todos[i];
-        const filePath = getTodoFilePath(date, todo.id);
+        const filePath = getTodoFilePath(date, todo.id, projectName);
         try {
             const content = await fs.readFile(filePath, 'utf-8');
             const serverTodo = JSON.parse(content);
@@ -118,10 +123,10 @@ export async function updateTodosOrder(date, todos) {
     }
 }
 
-export async function getOldUnfinishedTodos(currentDate) {
+export async function getOldUnfinishedTodos(currentDate, projectName) {
     let files = [];
     try {
-        files = await fs.readdir(getDataDir());
+        files = await fs.readdir(getDataDir(projectName));
     } catch (e) {
         return [];
     }
@@ -136,7 +141,7 @@ export async function getOldUnfinishedTodos(currentDate) {
         const datePart = file.split('_')[0];
         if (dayjs(datePart).isBefore(today)) {
             try {
-                const todo = JSON.parse(await fs.readFile(path.join(getDataDir(), file), 'utf-8'));
+                const todo = JSON.parse(await fs.readFile(path.join(getDataDir(projectName), file), 'utf-8'));
                 if (!todo.completed) {
                     allOldUnfinished.push({ ...todo, date: datePart });
                 }
@@ -146,10 +151,10 @@ export async function getOldUnfinishedTodos(currentDate) {
     return allOldUnfinished;
 }
 
-export async function getFutureTodos(currentDate) {
+export async function getFutureTodos(currentDate, projectName) {
     let files = [];
     try {
-        files = await fs.readdir(getDataDir());
+        files = await fs.readdir(getDataDir(projectName));
     } catch (e) {
         return [];
     }
@@ -163,7 +168,7 @@ export async function getFutureTodos(currentDate) {
         const datePart = file.split('_')[0];
         if (dayjs(datePart).isAfter(today)) {
             try {
-                const todo = JSON.parse(await fs.readFile(path.join(getDataDir(), file), 'utf-8'));
+                const todo = JSON.parse(await fs.readFile(path.join(getDataDir(projectName), file), 'utf-8'));
                 allFuture.push({ ...todo, date: datePart });
             } catch (e) { }
         }
@@ -171,10 +176,10 @@ export async function getFutureTodos(currentDate) {
     return allFuture;
 }
 
-export async function getAllDatesWithTodos() {
+export async function getAllDatesWithTodos(projectName) {
     let files = [];
     try {
-        files = await fs.readdir(getDataDir());
+        files = await fs.readdir(getDataDir(projectName));
     } catch (e) {
         return [];
     }
@@ -188,11 +193,11 @@ export async function getAllDatesWithTodos() {
     return Array.from(dates);
 }
 
-export async function searchTodos(query) {
+export async function searchTodos(query, projectName) {
     if (!query) return [];
     let files = [];
     try {
-        files = await fs.readdir(getDataDir());
+        files = await fs.readdir(getDataDir(projectName));
     } catch (e) {
         return [];
     }
@@ -204,7 +209,7 @@ export async function searchTodos(query) {
         if (!/^\d{4}-\d{2}-\d{2}_.+\.json$/.test(file)) continue;
         const datePart = file.split('_')[0];
         try {
-            const todo = JSON.parse(await fs.readFile(path.join(getDataDir(), file), 'utf-8'));
+            const todo = JSON.parse(await fs.readFile(path.join(getDataDir(projectName), file), 'utf-8'));
             if (
                 (todo.title && todo.title.toLowerCase().includes(q)) ||
                 (todo.content && todo.content.toLowerCase().includes(q))
@@ -216,10 +221,10 @@ export async function searchTodos(query) {
     return results;
 }
 
-export async function getStatsForDates(dates) {
+export async function getStatsForDates(dates, projectName) {
     const stats = {};
     for (const date of dates) {
-        const data = await getTodosForDate(date);
+        const data = await getTodosForDate(date, projectName);
         const todos = data.todos || [];
         stats[date] = {
             total: todos.length,
@@ -229,10 +234,10 @@ export async function getStatsForDates(dates) {
     return stats;
 }
 
-export async function getAllTodos() {
+export async function getAllTodos(projectName) {
     let files = [];
     try {
-        files = await fs.readdir(getDataDir());
+        files = await fs.readdir(getDataDir(projectName));
     } catch (e) {
         return [];
     }
@@ -242,21 +247,21 @@ export async function getAllTodos() {
         if (!/^\d{4}-\d{2}-\d{2}_.+\.json$/.test(file)) continue;
         const datePart = file.split('_')[0];
         try {
-            const todo = JSON.parse(await fs.readFile(path.join(getDataDir(), file), 'utf-8'));
+            const todo = JSON.parse(await fs.readFile(path.join(getDataDir(projectName), file), 'utf-8'));
             results.push({ ...todo, date: datePart });
         } catch (e) { }
     }
     return results;
 }
 
-export async function getWeeklyData(startDate) {
+export async function getWeeklyData(startDate, projectName) {
     // Return an object where keys are dates in the week
     const result = {};
     const start = dayjs(startDate).startOf('isoWeek');
 
     for (let i = 0; i < 7; i++) {
         const currentDate = start.add(i, 'day').format('YYYY-MM-DD');
-        const data = await getTodosForDate(currentDate);
+        const data = await getTodosForDate(currentDate, projectName);
         if (data.todos.length > 0) {
             result[currentDate] = data;
         }
@@ -264,8 +269,8 @@ export async function getWeeklyData(startDate) {
     return result;
 }
 
-export async function deleteTodo(date, id) {
-    const filePath = getTodoFilePath(date, id);
+export async function deleteTodo(date, id, projectName) {
+    const filePath = getTodoFilePath(date, id, projectName);
     try {
         await fs.unlink(filePath);
     } catch (e) {

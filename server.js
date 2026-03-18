@@ -13,15 +13,17 @@ import {
     getFutureTodos,
     getAllDatesWithTodos,
     searchTodos,
+    getStatsForDates,
+    getWeeklyData,
     deleteTodo,
     getAllTodos,
     ensureStorageDir,
-    getStorageDir,
     getUploadsDir
 } from './data-manager.js';
 
 const PROJECT_CONFIG_PATH = path.resolve('projects/projects.json');
 let currentProject = 'Default';
+const sessionProjects = new Map();
 
 async function saveProjectConfig() {
     try {
@@ -37,7 +39,7 @@ async function loadProjectConfig() {
         const data = JSON.parse(await fs.promises.readFile(PROJECT_CONFIG_PATH, 'utf-8'));
         currentProject = data.currentProject || 'Default';
     } catch (e) {}
-    await ensureStorageDir(path.resolve(`projects/${currentProject}`));
+    await ensureStorageDir(currentProject);
 }
 await loadProjectConfig();
 
@@ -111,6 +113,21 @@ const iconPath = resolveIconPath(cli.iconPath);
 const appTitle = cli.title?.trim() || 'RB Todo - Minimalist Productivity';
 const appShortTitle = appTitle.length > 30 ? appTitle.slice(0, 30).trim() : appTitle;
 
+function getSessionId(req) {
+    return req.headers['x-session-id'] || req.query.sessionId || req.body?.sessionId || null;
+}
+
+function getProjectFromReq(req) {
+    const explicit = req.query.project || req.body?.project || req.headers['x-project'];
+    if (explicit && /^[a-zA-Z0-9_-]+$/.test(explicit)) return explicit;
+
+    const sessionId = getSessionId(req);
+    if (sessionId && sessionProjects.has(sessionId)) {
+        return sessionProjects.get(sessionId);
+    }
+    return currentProject;
+}
+
 // Middleware
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
@@ -124,8 +141,11 @@ app.get('/api/app-config', (req, res) => {
     });
 });
 app.use(express.static('public'));
-app.use('/uploads', (req, res) => {
-    const filePath = path.join(getUploadsDir(), decodeURIComponent(req.path));
+app.use('/uploads', async (req, res) => {
+    const project = getProjectFromReq(req);
+    await ensureStorageDir(project);
+    const safeName = path.basename(decodeURIComponent(req.path));
+    const filePath = path.join(getUploadsDir(project), safeName);
     res.sendFile(filePath, (err) => {
         if (err) res.status(404).end();
     });
@@ -133,8 +153,14 @@ app.use('/uploads', (req, res) => {
 
 // Multer for uploads
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, getUploadsDir() + '/');
+    destination: async (req, file, cb) => {
+        try {
+            const project = getProjectFromReq(req);
+            await ensureStorageDir(project);
+            cb(null, getUploadsDir(project) + '/');
+        } catch (e) {
+            cb(e);
+        }
     },
     filename: (req, file, cb) => {
         const ext = path.extname(file.originalname);
@@ -144,15 +170,24 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // --- Edit Lock System ---
-const activeLocks = new Map(); // todoId -> { sessionId, updatedAt, lockedAt, lastWaiterAt }
+const activeLocksByProject = new Map(); // project -> Map(todoId -> lock)
 const LOCK_TIMEOUT = 20000; // 20 seconds
+
+function getLockMap(project) {
+    if (!activeLocksByProject.has(project)) {
+        activeLocksByProject.set(project, new Map());
+    }
+    return activeLocksByProject.get(project);
+}
 
 // Cleanup expired locks periodically
 setInterval(() => {
     const now = Date.now();
-    for (const [id, lock] of activeLocks.entries()) {
-        if (now - lock.updatedAt > LOCK_TIMEOUT) {
-            activeLocks.delete(id);
+    for (const lockMap of activeLocksByProject.values()) {
+        for (const [id, lock] of lockMap.entries()) {
+            if (now - lock.updatedAt > LOCK_TIMEOUT) {
+                lockMap.delete(id);
+            }
         }
     }
 }, 10000);
@@ -163,6 +198,8 @@ app.post('/api/lock', (req, res) => {
     const { id, sessionId } = req.body;
     if (!id || !sessionId) return res.status(400).json({ success: false, message: 'Missing id or sessionId' });
 
+    const project = getProjectFromReq(req);
+    const activeLocks = getLockMap(project);
     const now = Date.now();
     const currentLock = activeLocks.get(id);
 
@@ -188,6 +225,8 @@ app.post('/api/lock', (req, res) => {
 app.post('/api/unlock', (req, res) => {
     if (!req.body) return res.json({ success: true });
     const { id, sessionId } = req.body;
+    const project = getProjectFromReq(req);
+    const activeLocks = getLockMap(project);
     const currentLock = activeLocks.get(id);
     if (currentLock && currentLock.sessionId === sessionId) {
         activeLocks.delete(id);
@@ -199,6 +238,8 @@ app.post('/api/lock/heartbeat', (req, res) => {
     if (!req.body) return res.status(400).json({ success: false });
     const { id, sessionId } = req.body;
     const now = Date.now();
+    const project = getProjectFromReq(req);
+    const activeLocks = getLockMap(project);
     const currentLock = activeLocks.get(id);
     if (currentLock && currentLock.sessionId === sessionId) {
         currentLock.updatedAt = now;
@@ -212,7 +253,9 @@ app.post('/api/lock/heartbeat', (req, res) => {
 
 app.get('/api/todos/all', async (req, res) => {
     try {
-        const results = await getAllTodos();
+        const project = getProjectFromReq(req);
+        await ensureStorageDir(project);
+        const results = await getAllTodos(project);
         res.json(results);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -222,7 +265,9 @@ app.get('/api/todos/all', async (req, res) => {
 app.get('/api/todos', async (req, res) => {
     const { date } = req.query;
     try {
-        const data = await getTodosForDate(date);
+        const project = getProjectFromReq(req);
+        await ensureStorageDir(project);
+        const data = await getTodosForDate(date, project);
         res.json(data);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -232,7 +277,9 @@ app.get('/api/todos', async (req, res) => {
 app.post('/api/todos', async (req, res) => {
     const { date, todo, expectedUpdatedAt } = req.body;
     try {
-        const result = await saveTodo(date, todo, expectedUpdatedAt);
+        const project = getProjectFromReq(req);
+        await ensureStorageDir(project);
+        const result = await saveTodo(date, todo, expectedUpdatedAt, project);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -242,7 +289,9 @@ app.post('/api/todos', async (req, res) => {
 app.post('/api/todos/order', async (req, res) => {
     const { date, todos } = req.body;
     try {
-        await updateTodosOrder(date, todos);
+        const project = getProjectFromReq(req);
+        await ensureStorageDir(project);
+        await updateTodosOrder(date, todos, project);
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -252,8 +301,22 @@ app.post('/api/todos/order', async (req, res) => {
 app.get('/api/old-todos', async (req, res) => {
     const { date } = req.query; // current date
     try {
-        const oldTodos = await getOldUnfinishedTodos(date);
+        const project = getProjectFromReq(req);
+        await ensureStorageDir(project);
+        const oldTodos = await getOldUnfinishedTodos(date, project);
         res.json(oldTodos);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/future-todos', async (req, res) => {
+    const { date } = req.query;
+    try {
+        const project = getProjectFromReq(req);
+        await ensureStorageDir(project);
+        const futureTodos = await getFutureTodos(date, project);
+        res.json(futureTodos);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -271,7 +334,9 @@ app.get('/api/future-todos', async (req, res) => {
 
 app.get('/api/todo-dates', async (req, res) => {
     try {
-        const dates = await getAllDatesWithTodos();
+        const project = getProjectFromReq(req);
+        await ensureStorageDir(project);
+        const dates = await getAllDatesWithTodos(project);
         res.json(dates);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -281,7 +346,9 @@ app.get('/api/todo-dates', async (req, res) => {
 app.get('/api/search', async (req, res) => {
     const { q } = req.query;
     try {
-        const results = await searchTodos(q);
+        const project = getProjectFromReq(req);
+        await ensureStorageDir(project);
+        const results = await searchTodos(q, project);
         res.json(results);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -291,7 +358,9 @@ app.get('/api/search', async (req, res) => {
 app.post('/api/stats', async (req, res) => {
     const { dates } = req.body;
     try {
-        const stats = await getStatsForDates(dates);
+        const project = getProjectFromReq(req);
+        await ensureStorageDir(project);
+        const stats = await getStatsForDates(dates, project);
         res.json(stats);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -301,7 +370,9 @@ app.post('/api/stats', async (req, res) => {
 app.get('/api/export', async (req, res) => {
     const { date } = req.query;
     try {
-        const data = await getWeeklyData(date);
+        const project = getProjectFromReq(req);
+        await ensureStorageDir(project);
+        const data = await getWeeklyData(date, project);
         res.json(data);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -311,7 +382,9 @@ app.get('/api/export', async (req, res) => {
 app.post('/api/todos/delete', async (req, res) => {
     const { date, id } = req.body;
     try {
-        await deleteTodo(date, id);
+        const project = getProjectFromReq(req);
+        await ensureStorageDir(project);
+        await deleteTodo(date, id, project);
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -320,7 +393,9 @@ app.post('/api/todos/delete', async (req, res) => {
 
 app.post('/api/upload', upload.single('image'), (req, res) => {
     if (!req.file) return res.status(400).send('No file uploaded.');
-    res.json({ url: `/uploads/${req.file.filename}` });
+    const project = getProjectFromReq(req);
+    const encodedProject = encodeURIComponent(project || 'Default');
+    res.json({ url: `/uploads/${req.file.filename}?project=${encodedProject}` });
 });
 
 // --- Project Management ---
@@ -330,8 +405,10 @@ app.get('/api/projects', async (req, res) => {
         const entries = await fs.promises.readdir(projectsDir, { withFileTypes: true });
         const projects = entries
             .filter(e => e.isDirectory())
-            .map(e => e.name);
-        res.json({ projects, currentProject });
+            .map(e => e.name)
+            .sort();
+        const project = getProjectFromReq(req);
+        res.json({ projects, currentProject: project });
     } catch (e) {
         res.json({ projects: ['Default'], currentProject });
     }
@@ -340,9 +417,17 @@ app.get('/api/projects', async (req, res) => {
 app.post('/api/projects/switch', async (req, res) => {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'Project name required' });
-    
+
+    const sessionId = getSessionId(req);
+    if (sessionId) {
+        sessionProjects.set(sessionId, name);
+        await ensureStorageDir(name);
+        res.json({ success: true, currentProject: name });
+        return;
+    }
+
     currentProject = name;
-    await ensureStorageDir(path.resolve(`projects/${currentProject}`));
+    await ensureStorageDir(currentProject);
     await saveProjectConfig();
     res.json({ success: true, currentProject });
 });
@@ -352,9 +437,10 @@ app.post('/api/projects/create', async (req, res) => {
     if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
         return res.status(400).json({ error: 'Invalid project name' });
     }
-    
+
     const newDir = path.resolve(`projects/${name}`);
-    await ensureStorageDir(newDir);
+    if (fs.existsSync(newDir)) return res.status(400).json({ error: 'Project already exists' });
+    await ensureStorageDir(name);
     res.json({ success: true, name });
 });
 
@@ -362,6 +448,9 @@ app.delete('/api/projects/:name', async (req, res) => {
     const { name } = req.params;
     if (name === 'Default') return res.status(400).json({ error: 'Cannot delete Default project' });
     if (name === currentProject) return res.status(400).json({ error: 'Cannot delete active project' });
+    for (const project of sessionProjects.values()) {
+        if (project === name) return res.status(400).json({ error: 'Cannot delete active project' });
+    }
     
     const projectDir = path.resolve(`projects/${name}`);
     try {
@@ -391,6 +480,9 @@ app.post('/api/projects/rename', async (req, res) => {
         if (currentProject === oldName) {
             currentProject = newName;
             await saveProjectConfig();
+        }
+        for (const [sessionId, project] of sessionProjects.entries()) {
+            if (project === oldName) sessionProjects.set(sessionId, newName);
         }
         res.json({ success: true, name: newName });
     } catch (e) {
