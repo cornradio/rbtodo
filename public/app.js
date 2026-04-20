@@ -1608,8 +1608,8 @@ async function handleMoveToToday(todo) {
         body: JSON.stringify({ date: oldDate, id: todo.id })
     });
 
-    // Refresh view
-    await loadTodos();
+    // Switch to today's view
+    selectDate(today);
     updateEditorMoveTodayButton();
     setSaveIndicators('success', { flash: true, target: 'list' });
 }
