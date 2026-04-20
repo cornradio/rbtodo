@@ -231,7 +231,8 @@
 }
 
 /* CSS-driven toggle state */
-.apple-switch-wrapper input[type="checkbox"]:checked + .apple-switch {
+.apple-switch-wrapper input[type="checkbox"]:checked + .apple-switch,
+.apple-switch.active {
     background-color: #34c759;
 }
 

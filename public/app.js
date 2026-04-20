@@ -28,7 +28,8 @@ const state = {
     accentColorDark: localStorage.getItem('accent-color-dark') || '#7b79ff',
     projects: [],
     currentProject: 'Default',
-    appTitle: 'RB Todo'
+    appTitle: 'RB Todo',
+    weeklyExportData: null
 };
 
 const originalFetch = window.fetch.bind(window);
@@ -102,9 +103,11 @@ const searchResultsList = document.getElementById('search-results-list');
 const closeSearchBtn = document.getElementById('close-search');
 
 const exportModal = document.getElementById('export-modal');
-const exportTextarea = document.getElementById('export-textarea');
+const exportEditorPreview = document.getElementById('export-editor-preview');
 const closeExportBtn = document.getElementById('close-export');
-const copyExportBtn = document.getElementById('copy-export');
+const copyExportMdBtn = document.getElementById('copy-export-md');
+const copyExportTextBtn = document.getElementById('copy-export-text');
+const copyExportHtmlBtn = document.getElementById('copy-export-html');
 
 const lightboxModal = document.getElementById('lightbox-modal');
 const lightboxImg = document.getElementById('lightbox-img');
@@ -125,6 +128,7 @@ const openSearchBtn = document.getElementById('open-search-btn');
 const manualReloadBtn = document.getElementById('manual-reload');
 const listManualReloadBtn = document.getElementById('list-manual-reload');
 const listSaveStatus = document.getElementById('list-save-status');
+const moveTodayBtnEditor = document.getElementById('move-today-btn-editor');
 const listTotalStats = document.getElementById('list-total-stats');
 const saveQueueByTodoId = new Map();
 const imageUploadInput = document.getElementById('image-upload');
@@ -553,11 +557,23 @@ function setupEventListeners() {
 
     // Export
     closeExportBtn.addEventListener('click', () => exportModal.classList.add('hidden'));
-    copyExportBtn.addEventListener('click', () => {
-        exportTextarea.select();
-        document.execCommand('copy');
-        copyExportBtn.textContent = 'Copied!';
-        setTimeout(() => copyExportBtn.textContent = 'Copy Text', 2000);
+    
+    copyExportMdBtn?.addEventListener('click', () => {
+        const text = buildMarkdownExport(state.weeklyExportData);
+        copyToClipboard(text);
+        flashButton(copyExportMdBtn, '✅ Copied MD');
+    });
+    
+    copyExportTextBtn?.addEventListener('click', () => {
+        const text = buildTextExport(state.weeklyExportData);
+        copyToClipboard(text);
+        flashButton(copyExportTextBtn, '✅ Copied Text');
+    });
+    
+    copyExportHtmlBtn?.addEventListener('click', () => {
+        const html = buildHtmlExport(state.weeklyExportData);
+        copyRichText(html);
+        flashButton(copyExportHtmlBtn, '✅ Copied HTML');
     });
 
     // Mobile Event Listeners
@@ -566,6 +582,13 @@ function setupEventListeners() {
     drawerBackdrop?.addEventListener('click', closeAllDrawers);
 
     manualReloadBtn?.addEventListener('click', manualReloadTodo);
+    
+    moveTodayBtnEditor?.addEventListener('click', () => {
+        if (state.selectedTodo) {
+            handleMoveToToday(state.selectedTodo);
+        }
+    });
+
     listManualReloadBtn?.addEventListener('click', async () => {
         listManualReloadBtn.classList.add('spinning');
         await loadTodos();
@@ -780,6 +803,7 @@ function closeEditor() {
 function toggleMobileSidebar() {
     sidebar.classList.toggle('mobile-open');
     updateDrawerBackdrop();
+    updateEditorMoveTodayButton();
 }
 
 function closeAllDrawers() {
@@ -1111,6 +1135,9 @@ function renderList(todos, container, isOld) {
             toggleTodoComplete(todo);
         };
 
+        const contentWrapper = document.createElement('div');
+        contentWrapper.className = 'todo-content-wrapper';
+
         const title = document.createElement('div');
         title.className = 'todo-title';
         title.textContent = todo.title || '(No Title)';
@@ -1337,19 +1364,84 @@ function toggleFullscreen() {
 
 async function handleExport(targetDate = state.selectedDate) {
     try {
-        const res = await fetch(`/api/export?date=${targetDate}`);
+        const res = await fetch(`/api/export-all?date=${targetDate}`);
         const data = await res.json();
+        state.weeklyExportData = data;
+        
+        const start = dayjs(targetDate).startOf('isoWeek');
+        const end = start.add(6, 'day');
+        document.getElementById('export-title').textContent = `Weekly Export: ${start.format('MM-DD')} ~ ${end.format('MM-DD')}`;
+        
+        // Render in the editor-like preview
+        let previewHtml = '';
+        const projectNames = Object.keys(data).sort();
+        
+        if (projectNames.length === 0) {
+            previewHtml = '<p style="opacity:0.5; padding:20px; text-align:center;">No todos found for this week in any project.</p>';
+        } else {
+            projectNames.forEach(projectName => {
+                const projectData = data[projectName];
+                previewHtml += `<div class="export-project-group" style="margin-bottom: 30px;">
+                    <h2 style="color: var(--accent-color); border-bottom: 2px solid var(--accent-color); padding-bottom: 8px; margin-bottom: 15px; font-size: 1.3rem;">PROJECT: ${projectName}</h2>`;
+                
+                const sortedDates = Object.keys(projectData).sort();
+                sortedDates.forEach(date => {
+                    const dayTodos = projectData[date].todos;
+                    if (dayTodos.length > 0) {
+                        previewHtml += `<div class="export-day-group" style="margin-bottom: 15px; padding-left: 10px;">
+                            <h3 style="font-size: 0.95rem; opacity: 0.7; margin-bottom: 8px;">${date} (${dayjs(date).format('ddd')})</h3>`;
+                        
+                        dayTodos.forEach(t => {
+                            const statusIcon = t.completed ? '✅' : '⭕';
+                            previewHtml += `<div style="margin-bottom: 6px;">
+                                <div style="display: flex; align-items: flex-start; gap: 8px; font-weight: 600;">
+                                    <span>${statusIcon}</span>
+                                    <span>${t.title || '(No Title)'}</span>
+                                </div>`;
+                            
+                            if (t.content) {
+                                // Sanitized and formatted content snippet
+                                const cleanContent = t.content
+                                    .replace(/<img[^>]*>/gi, '[🖼️ Image]')
+                                    .replace(/<br\s*\/?>/gi, '<br>')
+                                    .trim();
+                                if (cleanContent) {
+                                    previewHtml += `<div style="padding-left: 32px; font-size: 0.9rem; opacity: 0.8; line-height: 1.5; margin-top: 4px;">
+                                        ${cleanContent}
+                                    </div>`;
+                                }
+                            }
+                            previewHtml += `</div>`;
+                        });
+                        previewHtml += `</div>`;
+                    }
+                });
+                previewHtml += `</div>`;
+            });
+        }
 
-        let text = `# Weekly Summary (${dayjs(targetDate).startOf('isoWeek').format('YYYY-MM-DD')} to ${dayjs(targetDate).endOf('isoWeek').format('YYYY-MM-DD')})\n\n`;
+        exportEditorPreview.innerHTML = previewHtml;
+        exportModal.classList.remove('hidden');
+    } catch (e) {
+        console.error(e);
+        alert('Export failed.');
+    }
+}
 
-        const sortedDates = Object.keys(data).sort();
+function buildMarkdownExport(data) {
+    let md = '';
+    const projectNames = Object.keys(data).sort();
+    projectNames.forEach(projectName => {
+        md += `# PROJECT: ${projectName}\n\n`;
+        const projectData = data[projectName];
+        const sortedDates = Object.keys(projectData).sort();
         sortedDates.forEach(date => {
-            const dayTodos = data[date].todos;
+            const dayTodos = projectData[date].todos;
             if (dayTodos.length > 0) {
-                text += `## ${date} (${dayjs(date).format('ddd')})\n`;
+                md += `## ${date} (${dayjs(date).format('ddd')})\n\n`;
                 dayTodos.forEach(t => {
                     const status = t.completed ? '[x]' : '[ ]';
-                    text += `${status} ${t.title || 'Untitled'}\n`;
+                    md += `${status} **${t.title || '(No Title)'}**\n`;
                     if (t.content) {
                         const cleanContent = t.content
                             .replace(/<br\s*\/?>/gi, '\n')
@@ -1357,22 +1449,145 @@ async function handleExport(targetDate = state.selectedDate) {
                             .replace(/<[^>]*>/g, '')
                             .trim();
                         if (cleanContent) {
-                            text += cleanContent.split('\n')
+                            md += cleanContent.split('\n')
                                 .filter(line => line.trim())
                                 .map(line => `   > ${line.trim()}`)
                                 .join('\n') + '\n';
                         }
                     }
                 });
+                md += '\n';
+            }
+        });
+        md += '---\n\n';
+    });
+    return md.trim();
+}
+
+function buildTextExport(data) {
+    let text = '';
+    const projectNames = Object.keys(data).sort();
+    projectNames.forEach(projectName => {
+        text += `PROJECT: ${projectName}\n${'='.repeat(projectName.length + 9)}\n\n`;
+        const projectData = data[projectName];
+        const sortedDates = Object.keys(projectData).sort();
+        sortedDates.forEach(date => {
+            const dayTodos = projectData[date].todos;
+            if (dayTodos.length > 0) {
+                text += `${date} (${dayjs(date).format('ddd')})\n`;
+                dayTodos.forEach(t => {
+                    const status = t.completed ? '[DONE]' : '[PENDING]';
+                    text += `  ${status} ${t.title || '(No Title)'}\n`;
+                });
                 text += '\n';
             }
         });
+    });
+    return text.trim();
+}
 
-        exportTextarea.value = text;
-        exportModal.classList.remove('hidden');
-    } catch (e) {
-        console.error(e);
-        alert('Export failed.');
+function buildHtmlExport(data) {
+    let html = '<div style="font-family: sans-serif;">';
+    const projectNames = Object.keys(data).sort();
+    projectNames.forEach(projectName => {
+        html += `<h1 style="color: #5e5ce6; border-bottom: 2px solid #5e5ce6;">PROJECT: ${projectName}</h1>`;
+        const projectData = data[projectName];
+        const sortedDates = Object.keys(projectData).sort();
+        sortedDates.forEach(date => {
+            const dayTodos = projectData[date].todos;
+            if (dayTodos.length > 0) {
+                html += `<h3>${date} (${dayjs(date).format('ddd')})</h3>`;
+                dayTodos.forEach(t => {
+                    const status = t.completed ? '✅' : '⭕';
+                    html += `<div style="margin-bottom: 10px;">
+                        <p style="margin: 0; font-weight: bold;">${status} ${t.title || '(No Title)'}</p>`;
+                    if (t.content) {
+                        html += `<div style="margin: 5px 0 10px 25px; color: #666; font-size: 0.9em;">${t.content}</div>`;
+                    }
+                    html += `</div>`;
+                });
+            }
+        });
+    });
+    html += '</div>';
+    return html;
+}
+
+function copyRichText(html) {
+    const type = 'text/html';
+    const blob = new Blob([html], { type });
+    const data = [new ClipboardItem({ [type]: blob, 'text/plain': new Blob([html.replace(/<[^>]*>/g, '')], { type: 'text/plain' }) })];
+    navigator.clipboard.write(data).catch(() => {
+        // Fallback to simple hidden container copy
+        const container = document.createElement('div');
+        container.innerHTML = html;
+        container.style.position = 'fixed';
+        container.style.pointerEvents = 'none';
+        container.style.opacity = '0';
+        document.body.appendChild(container);
+        
+        window.getSelection().removeAllRanges();
+        const range = document.createRange();
+        range.selectNode(container);
+        window.getSelection().addRange(range);
+        document.execCommand('copy');
+        document.body.removeChild(container);
+    });
+}
+
+function flashButton(btn, text) {
+    const originalText = btn.textContent;
+    btn.textContent = text;
+    btn.classList.add('active');
+    setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('active');
+    }, 2000);
+}
+
+function copyToClipboard(text) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text);
+    } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+    }
+}
+
+async function handleMoveToToday(todo) {
+    const today = dayjs().format('YYYY-MM-DD');
+    const oldDate = (todo.date || state.selectedDate).split(' ')[0];
+    
+    if (oldDate === today) return;
+
+    todo.date = today;
+    await saveTodoData(todo);
+    
+    // Remote old entry
+    await fetch('/api/todos/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: oldDate, id: todo.id })
+    });
+
+    // Refresh view
+    await loadTodos();
+    updateEditorMoveTodayButton();
+    setSaveIndicators('success', { flash: true, target: 'list' });
+}
+
+function updateEditorMoveTodayButton() {
+    const todayStr = dayjs().format('YYYY-MM-DD');
+    if (!moveTodayBtnEditor) return;
+    
+    if (state.selectedTodo && state.selectedTodo.date && state.selectedTodo.date.split(' ')[0] !== todayStr) {
+        moveTodayBtnEditor.classList.remove('hidden');
+    } else {
+        moveTodayBtnEditor.classList.add('hidden');
     }
 }
 
@@ -1440,6 +1655,7 @@ async function openTodo(todo) {
     updateDrawerBackdrop();
     renderTodoLists();
     updateNoteStats();
+    updateEditorMoveTodayButton();
 }
 
 function toggleReadOnly(readOnly, message = '', lockedAt = null) {

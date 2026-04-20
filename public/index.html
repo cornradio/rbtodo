@@ -241,6 +241,7 @@
                 <footer class="editor-footer-container">
                     <div class="footer-left">
                         <span id="note-date" class="note-stats clickable-date" title="Click to change date"></span>
+                        <button id="move-today-btn-editor" class="note-stats action-link-btn hidden" title="Move this task to Today">添加到今天</button>
                         <input type="date" id="todo-date-picker" class="hidden-picker">
                         <span id="note-pic-count" class="note-stats">0 pics</span>
                         <div class="apple-switch-wrapper compression-status" title="Client-side Image Compression">
@@ -284,16 +285,26 @@
 
         <!-- Export Modal -->
         <div id="export-modal" class="search-overlay hidden">
-            <div class="search-results-window">
+            <div class="search-results-window full-screen-modal">
                 <div class="search-results-header">
-                    <h3>Weekly Export</h3>
-                    <div class="header-btns">
-                        <button id="copy-export" class="add-btn">Copy Text</button>
-                        <button id="close-export" class="icon-btn modal-close-btn">✕</button>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <h3 id="export-title">Weekly Export</h3>
+                        <div class="export-toolbar" style="display: flex; gap: 8px; margin-left: 20px;">
+                            <button id="copy-export-md" class="side-action-btn" title="Copy as Markdown">📋 MD</button>
+                            <button id="copy-export-text" class="side-action-btn" title="Copy as Plain Text">📋 Text</button>
+                            <button id="copy-export-html" class="side-action-btn" title="Copy as Rich Text/HTML">📋 HTML</button>
+                        </div>
+                    </div>
+                    <button id="close-export" class="icon-btn modal-close-btn">✕</button>
+                </div>
+                <div class="export-content" style="padding: 0; background: var(--editor-bg); overflow: hidden; display: flex; flex-direction: column; flex: 1;">
+                    <div id="export-editor-preview" class="content-editor" style="padding: 30px; overflow-y: auto; flex: 1;" contenteditable="false">
+                        <!-- Preview content here -->
                     </div>
                 </div>
-                <div class="export-content">
-                    <textarea id="export-textarea" readonly></textarea>
+                <div style="padding: 12px 20px; border-top: 1px solid var(--border-color); font-size: 0.75rem; opacity: 0.5; display: flex; justify-content: space-between;">
+                    <span>* This is a read-only preview of all projects.</span>
+                    <span id="export-stats-label"></span>
                 </div>
             </div>
         </div>

@@ -379,6 +379,29 @@ app.get('/api/export', async (req, res) => {
     }
 });
 
+app.get('/api/export-all', async (req, res) => {
+    const { date } = req.query;
+    try {
+        const projectsDir = path.resolve('projects');
+        const entries = await fs.promises.readdir(projectsDir, { withFileTypes: true });
+        const projectNames = entries
+            .filter(e => e.isDirectory())
+            .map(e => e.name);
+        
+        const allData = {};
+        for (const name of projectNames) {
+            await ensureStorageDir(name);
+            const data = await getWeeklyData(date, name);
+            if (Object.keys(data).length > 0) {
+                allData[name] = data;
+            }
+        }
+        res.json(allData);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/todos/delete', async (req, res) => {
     const { date, id } = req.body;
     try {

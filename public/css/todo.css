@@ -173,6 +173,21 @@
     z-index: 2;
 }
 
+.action-link-btn {
+    border: none !important;
+    background: var(--accent-soft) !important;
+    color: var(--accent-color) !important;
+    cursor: pointer;
+    font-weight: 700;
+    transition: all 0.2s;
+    padding: 1px 8px !important;
+}
+
+.action-link-btn:hover {
+    background: var(--accent-color) !important;
+    color: white !important;
+}
+
 /* Connection line to notes top */
 .todo-item.drag-over {
     border-top: 2px solid var(--accent-color);

@@ -24,6 +24,14 @@
     max-height: 88dvh;
 }
 
+.search-results-window.full-screen-modal {
+    width: 100vw;
+    height: 100dvh;
+    max-width: 100vw;
+    max-height: 100dvh;
+    border-radius: 0;
+}
+
 .search-results-header {
     border-bottom: 1px solid var(--border-color);
     display: flex;
