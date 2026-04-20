@@ -1123,7 +1123,7 @@ function renderList(todos, container, isOld) {
     todos.forEach((todo, index) => {
         const item = document.createElement('div');
         item.className = `todo-item ${todo.completed ? 'completed' : ''} ${state.selectedTodo?.id === todo.id ? 'active' : ''}`;
-        item.draggable = false;
+        item.draggable = !isOld;
         item.dataset.id = todo.id;
         item.dataset.index = index;
         item.dataset.isOld = isOld;
@@ -1170,24 +1170,22 @@ function renderList(todos, container, isOld) {
         item.appendChild(title);
         item.onclick = () => openTodo(todo);
 
-        // Drag & Drop DISABLED per user request
-        /*
-        item.addEventListener('dragstart', handleDragStart);
-        item.addEventListener('dragover', handleDragOver);
-        item.addEventListener('dragleave', handleDragLeave);
-        item.addEventListener('drop', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const toIdx = parseInt(item.dataset.index);
-            handleDrop(isOld, toIdx);
-        });
-        item.addEventListener('dragend', handleDragEnd);
-        */
+        // Drag & Drop
+        if (!isOld) {
+            item.addEventListener('dragstart', handleDragStart);
+            item.addEventListener('dragover', handleDragOver);
+            item.addEventListener('dragleave', handleDragLeave);
+            item.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const toIdx = parseInt(item.dataset.index);
+                handleDrop(isOld, toIdx);
+            });
+            item.addEventListener('dragend', handleDragEnd);
+        }
 
         container.appendChild(item);
     });
-
-    // Drag & Drop Containers DISABLED
 }
 
 function renderAllTasksByWeek(todos, container) {
@@ -1334,9 +1332,45 @@ function handleDragEnd(e) {
     draggedItem = null;
 }
 
-function handleDrop(targetIsOld, toIndex) {
-    // Disabled per user request
-    return;
+async function handleDrop(targetIsOld, toIndex) {
+    if (!draggedItem) return;
+    const fromIndex = parseInt(draggedItem.dataset.index);
+    const sourceIsOld = draggedItem.dataset.isOld === 'true';
+
+    // Only allow sorting within today's list for now
+    if (sourceIsOld || targetIsOld) return;
+    if (fromIndex === toIndex) return;
+
+    // Reorder state.todos
+    const [movedItem] = state.todos.splice(fromIndex, 1);
+    
+    // If we moved an item down, the indices of items after it shifted up.
+    // To maintain "drop-above" behavior, we adjust the target index.
+    let targetIndex = toIndex;
+    if (fromIndex < toIndex) {
+        targetIndex = toIndex - 1;
+    }
+    
+    state.todos.splice(targetIndex, 0, movedItem);
+
+    // Re-render immediately for responsiveness
+    renderTodoLists();
+
+    // Save order to server
+    try {
+        await fetch('/api/todos/order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                date: state.selectedDate, 
+                todos: state.todos.map((t, idx) => ({ id: t.id, order: idx })) 
+            })
+        });
+        setSaveIndicators('success', { flash: true, target: 'list' });
+    } catch (e) {
+        console.error('Failed to save order:', e);
+        setSaveIndicators('error', { flash: true, target: 'list' });
+    }
 }
 
 // --- Actions ---
