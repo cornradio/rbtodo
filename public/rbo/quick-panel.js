@@ -5,6 +5,16 @@
             return `${y}-${m}-${day}`;
         }
 
+        function newId() {
+            if (window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+            const bytes = new Uint8Array(16);
+            crypto.getRandomValues(bytes);
+            bytes[6] = (bytes[6] & 0x0f) | 0x40;
+            bytes[8] = (bytes[8] & 0x3f) | 0x80;
+            const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+            return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+        }
+
         let serverPort = null;
         let baseURL = '';
         function isLocalBase() {
@@ -1839,7 +1849,7 @@
             }
             contentHtml += '<p>' + text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g, '<br>') + '</p>';
             const newTodo = {
-                id: crypto.randomUUID(),
+                id: newId(),
                 title: text.substring(0, 200),
                 content: contentHtml,
                 completed: false,
@@ -2185,12 +2195,10 @@
 
                 if (action === 'copy-rich') {
                     const html = editorEl.innerHTML.replace(ZW_RE, '');
-                    const blob = new Blob([html], { type: 'text/html' });
-                    const plainBlob = new Blob([getPlainText()], { type: 'text/plain' });
-                    await navigator.clipboard.write([new ClipboardItem({ 'text/html': blob, 'text/plain': plainBlob })]);
+                    await copyRichText(html, getPlainText());
                     showToast('Rich text copied');
                 } else if (action === 'copy-plain') {
-                    await navigator.clipboard.writeText(getPlainText());
+                    await copyPlainText(getPlainText());
                     showToast('Plain text copied');
                 } else if (action === 'export-md') {
                     const tmpDiv = document.createElement('div');
@@ -2352,13 +2360,53 @@
             }
         });
 
+        function copyPlainText(text) {
+            if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+            const area = document.createElement('textarea');
+            area.value = text;
+            area.style.cssText = 'position:fixed;left:-9999px;top:0;';
+            document.body.appendChild(area);
+            area.select();
+            const ok = document.execCommand('copy');
+            area.remove();
+            if (!ok) throw new Error('copy failed');
+        }
+
+        function copyRichText(html, plain) {
+            if (navigator.clipboard && window.isSecureContext && window.ClipboardItem) {
+                const blob = new Blob([html], { type: 'text/html' });
+                const plainBlob = new Blob([plain], { type: 'text/plain' });
+                return navigator.clipboard.write([new ClipboardItem({ 'text/html': blob, 'text/plain': plainBlob })]);
+            }
+            const holder = document.createElement('div');
+            holder.contentEditable = 'true';
+            holder.innerHTML = html;
+            holder.style.cssText = 'position:fixed;left:-9999px;top:0;';
+            document.body.appendChild(holder);
+            const range = document.createRange();
+            range.selectNodeContents(holder);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+            const ok = document.execCommand('copy');
+            sel.removeAllRanges();
+            holder.remove();
+            if (!ok) throw new Error('copy failed');
+        }
+
         // --- New task ---
-        document.getElementById('new-input').addEventListener('keydown', async (e) => {
-            if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229 && e.target.value.trim()) {
+        const newInput = document.getElementById('new-input');
+        let newInputComposing = false;
+        let submitAfterComposition = false;
+        async function createFromNewInput() {
+            const title = newInput.value.trim();
+            if (!title || newInput._creating) return;
+            newInput._creating = true;
+            try {
                 const date = (selectedDate === 'overdue' || selectedDate === 'future') ? todayStr : selectedDate;
                 const newTodo = {
-                    id: crypto.randomUUID(),
-                    title: e.target.value.trim(),
+                    id: newId(),
+                    title,
                     content: '',
                     completed: false,
                     date: date,
@@ -2367,12 +2415,31 @@
                     updatedAt: Date.now()
                 };
                 await saveTodo(newTodo);
-                e.target.value = '';
+                newInput.value = '';
                 await loadTodos();
-                // Simulate user click to open the new todo
                 const created = todos.find(t => t.id === newTodo.id);
                 if (created) openEditor(created);
+            } catch (err) {
+                showToast('Could not create task');
+            } finally {
+                newInput._creating = false;
             }
+        }
+        newInput.addEventListener('compositionstart', () => { newInputComposing = true; });
+        newInput.addEventListener('compositionend', () => {
+            newInputComposing = false;
+            if (!submitAfterComposition) return;
+            submitAfterComposition = false;
+            setTimeout(() => { createFromNewInput(); }, 0);
+        });
+        newInput.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            if (e.isComposing || newInputComposing || e.keyCode === 229) {
+                submitAfterComposition = true;
+                return;
+            }
+            e.preventDefault();
+            createFromNewInput();
         });
 
         // --- Menu ---

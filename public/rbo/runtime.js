@@ -1304,9 +1304,13 @@ body.custom {
                 iframe.srcdoc = html;
             });
             const doc = iframe.contentDocument;
+            await Promise.all([...doc.images].map((img) => img.complete ? null : new Promise((resolve) => { img.onload = resolve; img.onerror = resolve; })));
             const height = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 200);
-            const xhtml = doc.body.innerHTML.replace(/&nbsp;/g, '&#160;');
-            const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="' + height + '"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml" style="width:800px;box-sizing:border-box;background:#fff;color:#222;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:14px;line-height:1.6;">' + xhtml + '</div></foreignObject></svg>';
+            const xml = new XMLSerializer();
+            const styleEl = doc.querySelector('style');
+            const headXml = styleEl ? xml.serializeToString(styleEl) : '';
+            const bodyXml = xml.serializeToString(doc.body);
+            const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="' + height + '"><foreignObject width="800" height="' + height + '">' + headXml + bodyXml + '</foreignObject></svg>';
             const img = new Image();
             await new Promise((resolve, reject) => {
                 img.onload = resolve;
@@ -1328,9 +1332,7 @@ body.custom {
             saveBlob(blob, safe + '.png');
             return { success: true };
         } catch (err) {
-            const safe = String(title || 'export').replace(/[\\/:*?"<>|]/g, '_');
-            saveBlob(new Blob([html], { type: 'text/html' }), safe + '.html');
-            return { success: false, error: '长图渲染失败，已改为下载 HTML' };
+            return { success: false, error: '长图渲染失败' };
         } finally {
             iframe.remove();
         }
@@ -1417,17 +1419,24 @@ body.custom {
         onNavigateToTodo: (callback) => { if (typeof callback === 'function') panelListeners.navigate.push(callback); },
         exportPDF: async (html, title) => {
             const frame = document.createElement('iframe');
-            frame.style.cssText = 'position:fixed;width:0;height:0;border:0;';
+            frame.style.cssText = 'position:fixed;left:0;top:0;width:794px;height:100vh;border:0;opacity:0;pointer-events:none;';
             document.body.appendChild(frame);
             const doc = frame.contentDocument;
             doc.open();
             doc.write(html);
             doc.close();
+            const style = doc.createElement('style');
+            style.textContent = '@page{size:A4;margin:14mm;}html,body{width:auto!important;max-width:100%;background:#fff;}img{max-width:100%;height:auto;}';
+            doc.head.appendChild(style);
             doc.title = title || 'export';
-            setTimeout(() => {
-                try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (e) {}
-                setTimeout(() => frame.remove(), 1500);
-            }, 250);
+            await Promise.all([...doc.images].map((img) => (img.complete ? null : new Promise((resolve) => { img.onload = resolve; img.onerror = resolve; }))));
+            await new Promise((resolve) => setTimeout(resolve, 60));
+            const win = frame.contentWindow;
+            const cleanup = () => { try { frame.remove(); } catch (e) {} };
+            win.addEventListener('afterprint', cleanup);
+            setTimeout(cleanup, 60000);
+            win.focus();
+            win.print();
             return { success: true };
         },
         getAutoLaunch: async () => false,

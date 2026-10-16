@@ -108,12 +108,12 @@
         </div>
     </div>
 
-    <script src="runtime.js"></script>
+    <script src="runtime.js?v=4"></script>
     <script src="codemirror-bundle.js"></script>
     <script>
         RBTodoOffline.ready.then(function () {
             var s = document.createElement('script');
-            s.src = 'quick-panel.js';
+            s.src = 'quick-panel.js?v=4';
             s.onerror = function () {
                 document.body.insertAdjacentHTML('beforeend', '<p style="padding:24px">无法加载 quick-panel.js</p>');
             };
