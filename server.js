@@ -140,6 +140,9 @@ app.get('/api/app-config', (req, res) => {
         shortTitle: appShortTitle
     });
 });
+app.get('/rbo', (req, res) => {
+    res.sendFile(path.join(projectRoot, 'public', 'rbo', 'index.html'));
+});
 app.use(express.static('public'));
 app.use('/uploads', async (req, res) => {
     const project = getProjectFromReq(req);

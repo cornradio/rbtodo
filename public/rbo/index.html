@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RBTodo</title>
+    <base href="/rbo/">
+    <link rel="stylesheet" href="quick-panel.css">
+    <style>
+        html, body { height: 100%; }
+        .drag-handle {
+            display: none;
+            height: 0;
+            min-height: 0;
+        }
+        .drag-handle::after { display: none; }
+        body.zoomed .drag-handle {
+            display: flex;
+            height: auto;
+            min-height: 28px;
+        }
+    </style>
+</head>
+<body>
+    <div class="drag-handle"><span class="zoom-title" id="zoom-title"></span></div>
+    <div class="top-bar">
+        <div class="top-bar-left">
+            <h1 id="panel-title">Today</h1><span id="remote-badge" style="display:none;font-size:12px;color:var(--text-muted);margin-left:4px;">®</span>
+            <select class="project-select" id="project-select" style="margin-left:8px;"></select>
+        </div>
+        <div class="top-bar-center">
+            <div class="day-tabs" id="day-tabs"></div>
+            <button class="btn-icon cal-btn" id="cal-btn" title="Pick date">📅</button>
+            <input type="date" id="cal-input" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;">
+            <span class="week-offset-badge" id="week-offset-badge" style="display:none;"></span>
+        </div>
+        <div class="top-bar-right">
+            <button class="btn-icon" id="pin-btn" title="Pin window">📌</button>
+            <button class="btn-icon" id="search-btn" title="Search todos (⌘O)">🔍</button>
+            <div class="menu-wrap">
+                <button class="btn-icon" id="menu-btn" title="Menu">⋯</button>
+                <div class="dropdown-menu" id="dropdown-menu">
+                    <div class="menu-item" id="menu-open-folder">📂 Open Project Folder</div>
+                    <div class="menu-item" id="menu-open-url">🌐 Open Local URL</div>
+                    <div class="menu-item" id="menu-export-week">📋 Weekly Report</div>
+                    <div class="menu-item" id="menu-help">❓ Help</div>
+                    <div class="menu-divider"></div>
+                    <div class="menu-item" id="menu-settings">⚙️ Settings  <span style="opacity:0.4;font-size:11px">⌘,</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="left-panel">
+            <div class="task-list" id="task-list">
+                <div class="empty">No tasks</div>
+            </div>
+            <div class="new-task-bar">
+                <input type="text" id="new-input" placeholder="+ New task (Enter)" autocomplete="off">
+            </div>
+        </div>
+        <div class="resizer" id="resizer"></div>
+
+        <div class="right-panel">
+            <div class="editor-empty" id="editor-empty">
+                ← Select a task to edit
+            </div>
+            <div class="editor-area" id="editor-area">
+                <input type="text" class="editor-title" id="editor-title" placeholder="Title...">
+                <div class="editor-toolbar">
+                    <label class="toolbar-btn" id="tb-color-label" title="Text color (right-click: reapply last)">
+                        A
+                        <input type="color" id="tb-color" value="#ff3b30">
+                    </label>
+                    <button class="toolbar-btn" id="tb-clear-color" title="Reset color">A₀</button>
+                    <button class="toolbar-btn" id="tb-checkbox" title="Insert checkbox">✅</button>
+                    <button class="toolbar-btn" id="tb-numlist" title="Numbered list (1. 2. 3.)">1.</button>
+                    <button class="toolbar-btn" id="tb-emoji" title="Insert emoji">😀</button>
+                    <button class="toolbar-btn" id="tb-datetime" title="Insert date/time">🕐</button>
+                    <button class="toolbar-btn" id="tb-code" title="Insert code block">&lt;/&gt;</button>
+                    <button class="toolbar-btn" id="tb-link" title="Insert link">🔗</button>
+                    <button class="toolbar-btn" id="tb-img" title="Insert image">🖼</button>
+                    <button class="toolbar-btn" id="tb-compress" title="Toggle image compression">🗜</button>
+                    <input type="file" id="img-upload" accept="image/*" multiple style="display:none">
+                    <div style="margin-left:auto;display:flex;gap:inherit;">
+                        <button class="toolbar-btn" id="tb-custom" title="Run custom JS (right-click: open folder)" style="display:none;">🔧</button>
+                        <button class="toolbar-btn" id="tb-export" title="Export">⬇</button>
+                        <button class="toolbar-btn" id="tb-zoom" title="Zoom editor" style="font-size:15px;">⛶</button>
+                    </div>
+                </div>
+                <div class="editor-content" id="editor-content" contenteditable="true"></div>
+                <div class="img-resize-handle" id="img-resize-handle"></div>
+                <div class="editor-footer">
+                    <div class="editor-sync-actions">
+                        <button type="button" class="sync-icon-btn" id="btn-download" title="Download from cloud">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 18a4.5 4.5 0 0 1 .4-9 6.2 6.2 0 0 1 12 1.7A3.8 3.8 0 0 1 19 18H7.5z"/><path d="M12 11.5v7"/><path d="m9.2 15.8 2.8 2.8 2.8-2.8"/></svg>
+                        </button>
+                        <button type="button" class="sync-icon-btn" id="btn-save" title="Save (⌘S / Ctrl+S)">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l4 4v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 3v6h9"/><path d="M8 21v-7h8v7"/></svg>
+                        </button>
+                        <span class="editor-status" id="editor-status">Saved</span>
+                    </div>
+                    <input type="date" class="btn-date" id="editor-date-pick" style="display:none;" title="Change date">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="runtime.js"></script>
+    <script src="codemirror-bundle.js"></script>
+    <script>
+        RBTodoOffline.ready.then(function () {
+            var s = document.createElement('script');
+            s.src = 'quick-panel.js';
+            s.onerror = function () {
+                document.body.insertAdjacentHTML('beforeend', '<p style="padding:24px">无法加载 quick-panel.js</p>');
+            };
+            document.body.appendChild(s);
+        }).catch(function (err) {
+            document.body.insertAdjacentHTML('beforeend', '<p style="padding:24px">离线数据打开失败：' + (err && err.message || err) + '</p>');
+        });
+    </script>
+</body>
+</html>
