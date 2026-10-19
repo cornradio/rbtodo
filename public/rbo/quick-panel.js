@@ -123,6 +123,16 @@
         }
         loadZoom();
 
+        // Web /rbo applies zoom with CSS on <html>. Mouse coordinates stay in
+        // visual pixels; position:fixed and getBoundingClientRect stay in
+        // layout pixels. Electron's zoom does not set this style.
+        function cssZoom() {
+            const z = parseFloat(document.documentElement.style.zoom);
+            return z > 0 ? z : 1;
+        }
+        function layoutX(e) { return e.clientX / cssZoom(); }
+        function layoutY(e) { return e.clientY / cssZoom(); }
+
         // Periodically check if the calendar day has rolled over.
         // When it has, show a one-time toast nudging the user to refresh with ⌘R.
         let dateRolloverNotified = false;
@@ -525,7 +535,7 @@
             if (existing) existing.remove();
             const menu = document.createElement('div');
             menu.className = 'ctx-menu';
-            menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:9999;background:var(--bg-surface);border:1px solid var(--border-strong);border-radius:6px;padding:4px 0;min-width:160px;box-shadow:0 4px 12px var(--shadow);`;
+            menu.style.cssText = `position:fixed;left:${layoutX(e)}px;top:${layoutY(e)}px;z-index:9999;background:var(--bg-surface);border:1px solid var(--border-strong);border-radius:6px;padding:4px 0;min-width:160px;box-shadow:0 4px 12px var(--shadow);`;
 
             const mkItem = (label, danger) => {
                 const it = document.createElement('div');
@@ -754,10 +764,10 @@
 
         function getDropIndex(e) {
             const items = [...taskList.querySelectorAll('.task-item')];
+            const y = e.clientY;
             for (let i = 0; i < items.length; i++) {
                 const rect = items[i].getBoundingClientRect();
-                const mid = rect.top + rect.height / 2;
-                if (e.clientY < mid) return i;
+                if (y < rect.top + rect.height / 2) return i;
             }
             return items.length;
         }
@@ -824,8 +834,16 @@
         });
 
         // --- Editor ---
+        function linkifyTodoRefs(html) {
+            if (!html) return html;
+            return html.replace(/\(ID:\s*([0-9a-fA-F]{8})\)/g, (_, id) =>
+                `(<a href="#todo/${id}" class="todo-ref" data-todo-id="${id}">ID: ${id}</a>)`
+            );
+        }
         function resolveImageUrls(html) {
-            if (!html || !serverPort) return html;
+            if (!html) return html;
+            html = linkifyTodoRefs(html);
+            if (!serverPort) return html;
             // Strip any old localhost:PORT references and any embedded creds, then add current
             html = html.replace(/src="https?:\/\/[^"\/]*\/uploads\//g, 'src="/uploads/');
             return html.replace(/src="\/uploads\//g, `src="${baseURL}/uploads/`);
@@ -1579,6 +1597,25 @@
                 tn.parentNode.replaceChild(frag, tn);
             });
         }
+        let plainPasteShortcut = false;
+        const insertPlainTextLines = (text) => {
+            const escapeHtml = (s) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const html = text.split('\n').map(l => `<div>${escapeHtml(l) || '<br>'}</div>`).join('');
+            const editor = document.getElementById('editor-content');
+            editor.focus();
+            document.execCommand('insertHTML', false, html);
+        };
+        // Capture phase so HTTP (no Clipboard API) can still paste via the browser's paste event.
+        document.getElementById('editor-content').addEventListener('paste', (e) => {
+            if (!plainPasteShortcut) return;
+            plainPasteShortcut = false;
+            const text = e.clipboardData?.getData('text/plain') || '';
+            if (!text) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            insertPlainTextLines(text);
+            schedSave();
+        }, true);
         document.getElementById('editor-content').addEventListener('input', wrapBareCheckboxes);
         document.getElementById('editor-content').addEventListener('keydown', (e) => {
             // Prevent backspace/delete from eating code blocks
@@ -1613,18 +1650,22 @@
             }
             // ⌘⇧V / Ctrl+Shift+V — paste as plain text
             if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'v' || e.key === 'V')) {
-                e.preventDefault();
-                (async () => {
-                    try {
-                        const text = await navigator.clipboard.readText();
-                        if (!text) return;
-                        const escapeHtml = (s) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                        const html = text.split('\n').map(l => `<div>${escapeHtml(l) || '<br>'}</div>`).join('');
-                        document.getElementById('editor-content').focus();
-                        document.execCommand('insertHTML', false, html);
-                        schedSave();
-                    } catch (err) { showToast('Paste failed: ' + err.message); }
-                })();
+                if (navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
+                    e.preventDefault();
+                    (async () => {
+                        try {
+                            const text = await navigator.clipboard.readText();
+                            if (!text) return;
+                            insertPlainTextLines(text);
+                            schedSave();
+                        } catch (err) { showToast('Paste failed: ' + err.message); }
+                    })();
+                    return;
+                }
+                // HTTP is not a secure context: navigator.clipboard is undefined.
+                // Leave the key so the browser fires paste; clipboardData still works.
+                plainPasteShortcut = true;
+                setTimeout(() => { plainPasteShortcut = false; }, 0);
                 return;
             }
             // Enter: auto-continue numbered list "N. ..."
@@ -1796,6 +1837,42 @@
             document.getElementById('img-upload').click();
         });
 
+        function isTodoRef(link) {
+            const href = link.getAttribute('href') || '';
+            return link.classList.contains('todo-ref') || href.startsWith('#todo/');
+        }
+        async function openTodoByRef(idOrShort) {
+            const needle = String(idOrShort || '').trim().toLowerCase();
+            if (!needle) return;
+            try {
+                const res = await fetch(`${baseURL}/api/search?q=${encodeURIComponent(needle)}`, { headers: headers() });
+                const results = await res.json();
+                const hit = (Array.isArray(results) ? results : []).find(r => {
+                    const id = String(r.id || '').toLowerCase();
+                    return id === needle || id.startsWith(needle) || id.slice(0, 8) === needle;
+                });
+                if (!hit || !hit.date) { showToast('找不到这条 Todo'); return; }
+                const mondayOf = (d) => {
+                    const x = new Date(d);
+                    x.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+                    x.setHours(12, 0, 0, 0);
+                    return x;
+                };
+                const target = new Date(hit.date + 'T12:00:00');
+                const today = new Date(todayStr + 'T12:00:00');
+                weekOffset = Math.round((mondayOf(target) - mondayOf(today)) / (7 * 86400000));
+                weekDates = getWeekDates(weekOffset);
+                selectedDate = hit.date;
+                renderDayTabs();
+                updateTitle();
+                await loadTodos();
+                const todo = todos.find(t => t.id === hit.id);
+                if (todo) await openEditor(todo);
+                else showToast('找不到这条 Todo');
+            } catch (e) {
+                showToast('找不到这条 Todo');
+            }
+        }
         // Make links clickable with Cmd/Ctrl+Click or middle-click
         function openLink(link) {
             const href = link.getAttribute('href') || link.href;
@@ -1809,12 +1886,21 @@
             const link = e.target.closest('a');
             if (link) {
                 e.preventDefault();
+                if (isTodoRef(link)) {
+                    openTodoByRef(link.dataset.todoId || (link.getAttribute('href') || '').replace(/^#todo\//, ''));
+                    return;
+                }
                 if (e.metaKey || e.ctrlKey) openLink(link);
             }
         });
         document.getElementById('editor-content').addEventListener('auxclick', (e) => {
             if (e.button === 1) {
                 const link = e.target.closest('a');
+                if (link && isTodoRef(link)) {
+                    e.preventDefault();
+                    openTodoByRef(link.dataset.todoId || (link.getAttribute('href') || '').replace(/^#todo\//, ''));
+                    return;
+                }
                 if (link) { e.preventDefault(); openLink(link); }
             }
         });
@@ -1827,7 +1913,7 @@
         });
         document.getElementById('editor-content').addEventListener('mouseover', (e) => {
             const link = e.target.closest('a');
-            if (link) link.title = '⌘+Click to open';
+            if (link) link.title = isTodoRef(link) ? '点击跳转' : '⌘+Click to open';
             const img = e.target.closest('img');
             if (img) img.title = 'Double-click or ⌘+Click to view';
         });
@@ -1845,7 +1931,7 @@
             if (sourceTodo) {
                 const srcTitle = sourceTodo.title || 'Untitled';
                 const srcIdShort = (sourceTodo.id || '').substring(0, 8);
-                contentHtml += `<p style="color:var(--text-muted);font-size:12px;border-bottom:1px solid var(--border-light);padding-bottom:6px;margin-bottom:8px;">📎 创建自「${srcTitle.replace(/</g,'&lt;')}」<span style="opacity:0.6">(ID: ${srcIdShort})</span></p>`;
+                contentHtml += `<p style="color:var(--text-muted);font-size:12px;border-bottom:1px solid var(--border-light);padding-bottom:6px;margin-bottom:8px;">📎 创建自「${srcTitle.replace(/</g,'&lt;')}」 <a href="#todo/${srcIdShort}" class="todo-ref" data-todo-id="${srcIdShort}">ID: ${srcIdShort}</a></p>`;
             }
             contentHtml += '<p>' + text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g, '<br>') + '</p>';
             const newTodo = {
@@ -1874,7 +1960,7 @@
                 const href = link.getAttribute('href') || '';
                 const menu = document.createElement('div');
                 menu.className = 'link-ctx-menu';
-                menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:9999;background:var(--bg-surface);border:1px solid var(--border-strong);border-radius:6px;padding:4px 0;min-width:160px;box-shadow:0 4px 12px var(--shadow);`;
+                menu.style.cssText = `position:fixed;left:${layoutX(e)}px;top:${layoutY(e)}px;z-index:9999;background:var(--bg-surface);border:1px solid var(--border-strong);border-radius:6px;padding:4px 0;min-width:160px;box-shadow:0 4px 12px var(--shadow);`;
                 const mkLinkItem = (label, onClick, danger) => {
                     const it = document.createElement('div');
                     it.textContent = label;
@@ -1920,7 +2006,7 @@
                 it.addEventListener('click', () => { menuEl.remove(); onClick(); });
                 return it;
             };
-            const menuBase = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:9999;background:var(--bg-surface);border:1px solid var(--border-strong);border-radius:6px;padding:4px 0;min-width:180px;box-shadow:0 4px 12px var(--shadow);`;
+            const menuBase = `position:fixed;left:${layoutX(e)}px;top:${layoutY(e)}px;z-index:9999;background:var(--bg-surface);border:1px solid var(--border-strong);border-radius:6px;padding:4px 0;min-width:180px;box-shadow:0 4px 12px var(--shadow);`;
             const attachClose = (menu) => {
                 document.body.appendChild(menu);
                 const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('mousedown', close); } };
@@ -2036,7 +2122,7 @@
 
             function onResize(e) {
                 if (!resizeImg) return;
-                const newWidth = Math.max(40, startWidth + (e.clientX - startX));
+                const newWidth = Math.max(40, startWidth + (e.clientX - startX) / cssZoom());
                 resizeImg.style.width = newWidth + 'px';
                 resizeImg.style.maxWidth = newWidth + 'px';
                 resizeImg.style.height = 'auto';
@@ -2440,6 +2526,33 @@
             }
             e.preventDefault();
             createFromNewInput();
+        });
+
+        document.getElementById('btn-temp-task')?.addEventListener('click', async () => {
+            if (weekOffset !== 0) {
+                weekOffset = 0;
+                weekDates = getWeekDates(0);
+            }
+            if (selectedDate !== todayStr) {
+                selectedDate = todayStr;
+                renderDayTabs();
+                updateTitle();
+                await loadTodos();
+            }
+            const newTodo = {
+                id: newId(),
+                title: 'temp',
+                content: '',
+                completed: false,
+                date: todayStr,
+                order: todos.length,
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            };
+            await saveTodo(newTodo);
+            await loadTodos();
+            const created = todos.find(t => t.id === newTodo.id);
+            if (created) await openEditor(created);
         });
 
         // --- Menu ---
@@ -3307,13 +3420,22 @@
             }
 
             function filterResults() {
-                if (currentFilter === 'all') return allResults;
                 const q = input.value.trim().toLowerCase();
-                if (!q) return allResults;
-                return allResults.filter(r => {
-                    if (currentFilter === 'title') return r.title && r.title.toLowerCase().includes(q);
-                    if (currentFilter === 'content') return r.content && stripHtml(r.content).toLowerCase().includes(q);
-                    return true;
+                let list = allResults;
+                if (currentFilter !== 'all' && q) {
+                    list = allResults.filter(r => {
+                        if (currentFilter === 'title') return r.title && r.title.toLowerCase().includes(q);
+                        if (currentFilter === 'content') return r.content && stripHtml(r.content).toLowerCase().includes(q);
+                        return true;
+                    });
+                }
+                return list.slice().sort((a, b) => {
+                    const rank = (r) => {
+                        const id = String(r.id || '').toLowerCase();
+                        if (!q) return 1;
+                        return (id === q || id.slice(0, 8) === q || id.startsWith(q)) ? 0 : 1;
+                    };
+                    return rank(a) - rank(b);
                 });
             }
 
@@ -3428,7 +3550,7 @@
                 if (!dragging) return;
                 const container = document.querySelector('.main-content');
                 const rect = container.getBoundingClientRect();
-                const w = Math.max(160, Math.min(rect.width - 200, e.clientX - rect.left));
+                const w = Math.max(160, Math.min(rect.width - 200, layoutX(e) - rect.left));
                 leftPanel.style.width = w + 'px';
             });
             window.addEventListener('mouseup', () => {

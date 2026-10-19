@@ -210,15 +210,22 @@ export async function searchTodos(query, projectName) {
         const datePart = file.split('_')[0];
         try {
             const todo = JSON.parse(await fs.readFile(path.join(getDataDir(projectName), file), 'utf-8'));
+            const fileId = file.slice(datePart.length + 1, -5).toLowerCase();
+            const id = String(todo.id || fileId).toLowerCase();
+            const shortId = id.slice(0, 8);
+            const idHit = id.includes(q) || shortId === q || fileId.includes(q);
             if (
+                idHit ||
                 (todo.title && todo.title.toLowerCase().includes(q)) ||
                 (todo.content && todo.content.toLowerCase().includes(q))
             ) {
-                results.push({ ...todo, date: datePart });
+                const ownId = id === q || shortId === q || id.startsWith(q);
+                results.push({ ...todo, id: todo.id || fileId, date: datePart, _rank: ownId ? 0 : 1 });
             }
         } catch (e) { }
     }
-    return results;
+    results.sort((a, b) => a._rank - b._rank);
+    return results.map(({ _rank, ...todo }) => todo);
 }
 
 export async function getStatsForDates(dates, projectName) {

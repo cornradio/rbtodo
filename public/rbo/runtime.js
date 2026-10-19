@@ -592,11 +592,18 @@ body.custom {
         if (path === '/api/search' && verb === 'GET') {
             const q = (u.searchParams.get('q') || '').toLowerCase();
             if (!q) return { status: 200, json: [] };
-            const results = listTodos(project).filter((t) =>
-                (t.title && t.title.toLowerCase().includes(q)) ||
-                (t.content && String(t.content).toLowerCase().includes(q)) ||
-                (t.id && t.id.toLowerCase().includes(q))
-            );
+            const results = listTodos(project).filter((t) => {
+                const id = String(t.id || '').toLowerCase();
+                return (t.title && t.title.toLowerCase().includes(q)) ||
+                    (t.content && String(t.content).toLowerCase().includes(q)) ||
+                    id.includes(q) || id.slice(0, 8) === q;
+            }).sort((a, b) => {
+                const rank = (t) => {
+                    const id = String(t.id || '').toLowerCase();
+                    return (id === q || id.slice(0, 8) === q || id.startsWith(q)) ? 0 : 1;
+                };
+                return rank(a) - rank(b);
+            });
             return { status: 200, json: results };
         }
         if (path === '/api/stats' && verb === 'POST') {
@@ -1462,9 +1469,17 @@ body.custom {
         },
         setZoomFactor: (factor) => {
             const z = Math.max(0.6, Math.min(2, Number(factor) || 1));
-            document.documentElement.style.zoom = String(z);
+            // Scale the page by root font-size. CSS zoom splits mouse coordinates
+            // from layout and offsets menus and drags. Ctrl+Plus is browser zoom
+            // and would also enlarge every port on this host.
+            const root = document.documentElement;
+            root.style.zoom = '';
+            root.style.fontSize = (16 * z) + 'px';
         },
-        getZoomFactor: () => parseFloat(document.documentElement.style.zoom) || 1,
+        getZoomFactor: () => {
+            const fs = parseFloat(document.documentElement.style.fontSize);
+            return fs ? Math.round((fs / 16) * 10) / 10 : 1;
+        },
         getAppVersion: async () => APP_VERSION,
         getReleaseNotes: async () => releaseNotes,
         exportImage: (html, title) => exportLongImage(html, title),
