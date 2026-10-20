@@ -1504,5 +1504,11 @@ html { font-size: 16px; }
         }
         body.zoomed .right-panel { flex: 1; }
         body.zoomed .editor-area { position: relative; }
-        body.zoomed .editor-content { margin: 0 0.625rem 0.5rem; }
+        body.zoomed .editor-content {
+            margin: 0;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+        }
+        body.zoomed .editor-content:focus { border-color: transparent; }
     
