@@ -417,11 +417,115 @@ app.post('/api/todos/delete', async (req, res) => {
     }
 });
 
+function uploadOriginalName(name) {
+    const raw = String(name || '');
+    if (!raw || [...raw].some((ch) => ch.charCodeAt(0) > 255)) return raw;
+    const decoded = Buffer.from(raw, 'latin1').toString('utf8');
+    if (decoded.includes('\uFFFD')) return raw;
+    if (Buffer.from(decoded, 'utf8').toString('latin1') !== raw) return raw;
+    return decoded;
+}
+
 app.post('/api/upload', upload.single('image'), (req, res) => {
     if (!req.file) return res.status(400).send('No file uploaded.');
     const project = getProjectFromReq(req);
     const encodedProject = encodeURIComponent(project || 'Default');
-    res.json({ url: `/uploads/${req.file.filename}?project=${encodedProject}` });
+    res.json({
+        url: `/uploads/${req.file.filename}?project=${encodedProject}`,
+        name: uploadOriginalName(req.file.originalname) || req.file.filename,
+        size: req.file.size
+    });
+});
+
+function uploadLabel(html, name) {
+    const needle = `/uploads/${name}`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = String(html || '').match(new RegExp(`<a\\b[^>]*href="[^"]*${needle}[^"]*"[^>]*>([^<]*)</a>`, 'i'));
+    if (!match) return '';
+    return match[1].replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
+function countUploadRefs(text, name) {
+    const needle = '/uploads/' + name;
+    const body = String(text || '');
+    let refs = 0;
+    let from = 0;
+    while (from < body.length) {
+        const at = body.indexOf(needle, from);
+        if (at < 0) break;
+        const next = body[at + needle.length] || '';
+        if (!/[A-Za-z0-9._-]/.test(next)) refs += 1;
+        from = at + needle.length;
+    }
+    return refs;
+}
+
+app.get('/api/uploads', async (req, res) => {
+    try {
+        const project = getProjectFromReq(req);
+        await ensureStorageDir(project);
+        const dir = getUploadsDir(project);
+        let names = [];
+        try {
+            const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+            names = entries.filter(e => e.isFile()).map(e => e.name);
+        } catch (e) { names = []; }
+        const todos = await getAllTodos(project);
+        const encodedProject = encodeURIComponent(project || 'Default');
+        const items = names.map((name) => {
+            const stat = fs.statSync(path.join(dir, name));
+            let refs = 0;
+            let label = '';
+            const usedBy = [];
+            for (const todo of todos) {
+                const text = (todo.content || '') + (todo.title || '');
+                const count = countUploadRefs(text, name);
+                if (!count) continue;
+                refs += count;
+                if (!label) label = uploadLabel(todo.content, name);
+                usedBy.push({
+                    id: todo.id,
+                    title: todo.title || 'Untitled',
+                    date: todo.date
+                });
+            }
+            return {
+                name,
+                label: label || name,
+                url: `/uploads/${encodeURIComponent(name)}?project=${encodedProject}`,
+                size: stat.size,
+                mtime: stat.mtimeMs,
+                refs,
+                usedBy
+            };
+        });
+        items.sort((a, b) => b.mtime - a.mtime);
+        res.json(items);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/uploads/delete', async (req, res) => {
+    try {
+        const project = getProjectFromReq(req);
+        await ensureStorageDir(project);
+        const root = path.resolve(getUploadsDir(project));
+        const names = Array.isArray(req.body?.names) ? req.body.names : [];
+        let count = 0;
+        for (const raw of names) {
+            const name = path.basename(String(raw || ''));
+            if (!name || name !== String(raw || '') || name === '.' || name === '..') continue;
+            const target = path.resolve(root, name);
+            if (target !== path.join(root, name)) continue;
+            try {
+                await fs.promises.unlink(target);
+                count += 1;
+            } catch (e) {}
+        }
+        res.json({ count });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // --- Project Management ---

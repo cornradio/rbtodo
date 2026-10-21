@@ -1836,6 +1836,10 @@
             window.electronAPI.lockBlur();
             document.getElementById('img-upload').click();
         });
+        document.getElementById('tb-file').addEventListener('click', () => {
+            window.electronAPI.lockBlur();
+            document.getElementById('file-upload').click();
+        });
 
         function isTodoRef(link) {
             const href = link.getAttribute('href') || '';
@@ -1888,6 +1892,11 @@
                 e.preventDefault();
                 if (isTodoRef(link)) {
                     openTodoByRef(link.dataset.todoId || (link.getAttribute('href') || '').replace(/^#todo\//, ''));
+                    return;
+                }
+                const hrefAttr = link.getAttribute('href') || '';
+                if (link.classList.contains('file-link') || hrefAttr.includes('/uploads/')) {
+                    openLink(link);
                     return;
                 }
                 if (e.metaKey || e.ctrlKey) openLink(link);
@@ -2199,27 +2208,100 @@
             return file;
         }
 
-        // Image upload
-        document.getElementById('img-upload').addEventListener('change', async (e) => {
-            for (let file of e.target.files) {
-                file = await prepareImage(file);
-                const fd = new FormData();
-                fd.append('image', file);
-                const res = await fetch(`${baseURL}/api/upload`, {
-                    method: 'POST',
-                    headers: { 'X-Project': currentProject, ...(authHeader ? { 'Authorization': authHeader } : {}) },
-                    body: fd
-                });
-                const data = await res.json();
-                if (data.url) {
-                    document.getElementById('editor-content').focus();
-                    document.execCommand('insertHTML', false,
-                        `<img src="${baseURL}${data.url}" style="${imgInsertStyle()}">`);
-                    await flushSave();
+        function formatFileSize(bytes) {
+            const n = Number(bytes) || 0;
+            if (n < 1024) return n + ' B';
+            const kb = n / 1024;
+            if (kb < 1024) return (kb < 10 ? kb.toFixed(1) : Math.round(kb)) + ' KB';
+            const mb = kb / 1024;
+            if (mb < 1024) return (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
+            return (mb / 1024).toFixed(2) + ' GB';
+        }
+        function looksLikeImageFile(file) {
+            const type = (file && file.type || '').toLowerCase();
+            const name = (file && file.name) || '';
+            if (type === 'image/svg+xml' || /\.svg$/i.test(name)) return false;
+            if (type.startsWith('image/')) return true;
+            return /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(name);
+        }
+        function filesFromClipboard(data) {
+            if (!data) return [];
+            const files = [];
+            if (data.files && data.files.length) {
+                for (const file of data.files) if (file) files.push(file);
+            }
+            if (!files.length && data.items) {
+                for (const item of data.items) {
+                    if (item.kind === 'file') {
+                        const file = item.getAsFile();
+                        if (file) files.push(file);
+                    }
                 }
             }
+            return files;
+        }
+        async function uploadAttachment(file) {
+            const prepared = looksLikeImageFile(file) ? await prepareImage(file) : file;
+            const fd = new FormData();
+            fd.append('image', prepared, prepared.name || file.name || 'file');
+            const res = await fetch(`${baseURL}/api/upload`, {
+                method: 'POST',
+                headers: { 'X-Project': currentProject, ...(authHeader ? { 'Authorization': authHeader } : {}) },
+                body: fd
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.url) throw new Error(data.error || '上传失败');
+            return { ...data, file };
+        }
+        function attachmentHtml(data) {
+            const file = data.file;
+            const href = data.url.startsWith('http') ? data.url : `${baseURL}${data.url}`;
+            if (looksLikeImageFile(file)) {
+                return `<img src="${esc(href)}" style="${imgInsertStyle()}">`;
+            }
+            const name = data.name || file.name || '附件';
+            const label = name + ' (' + formatFileSize(data.size || file.size) + ')';
+            return `<a class="file-link" href="${esc(href)}">${esc(label)}</a>`;
+        }
+        async function insertUploadedFiles(files) {
+            if (!files || !files.length) return;
+            const editor = document.getElementById('editor-content');
+            editor.focus();
+            const parts = [];
+            for (const file of files) {
+                try {
+                    const data = await uploadAttachment(file);
+                    parts.push(attachmentHtml(data));
+                } catch (err) {
+                    showToast('上传失败: ' + (err.message || err));
+                }
+            }
+            if (!parts.length) return;
+            const html = parts.length > 1 ? parts.map(p => `<div>${p}</div>`).join('') : parts[0];
+            document.execCommand('insertHTML', false, html);
+            await flushSave();
+            showToast(parts.length > 1 ? '已添加 ' + parts.length + ' 个附件' : (parts[0].startsWith('<img') ? '已插入图片' : '已添加附件'));
+        }
+
+        // Image upload
+        document.getElementById('img-upload').addEventListener('change', async (e) => {
+            const files = [...(e.target.files || [])];
             e.target.value = '';
+            await insertUploadedFiles(files);
             window.electronAPI.unlockBlur();
+        });
+        document.getElementById('file-upload').addEventListener('change', async (e) => {
+            const files = [...(e.target.files || [])];
+            e.target.value = '';
+            await insertUploadedFiles(files);
+            window.electronAPI.unlockBlur();
+        });
+        document.getElementById('file-upload').addEventListener('click', () => {
+            const unlock = () => {
+                setTimeout(() => window.electronAPI.unlockBlur(), 300);
+                window.removeEventListener('focus', unlock);
+            };
+            window.addEventListener('focus', unlock);
         });
         // Also unlock if user cancels the file picker (no change event fires, but focus returns)
         document.getElementById('img-upload').addEventListener('click', () => {
@@ -2418,32 +2500,23 @@
             }
         });
 
-        // Paste image support
-        document.getElementById('editor-content').addEventListener('paste', async (e) => {
-            const items = e.clipboardData?.items;
-            if (!items) return;
-            for (const item of items) {
-                if (item.type.startsWith('image/')) {
-                    e.preventDefault();
-                    let file = item.getAsFile();
-                    file = await prepareImage(file);
-                    const fd = new FormData();
-                    fd.append('image', file);
-                    const res = await fetch(`${baseURL}/api/upload`, {
-                        method: 'POST',
-                        headers: { 'X-Project': currentProject, ...(authHeader ? { 'Authorization': authHeader } : {}) },
-                        body: fd
-                    });
-                    const data = await res.json();
-                    if (data.url) {
-                        document.execCommand('insertHTML', false,
-                            `<img src="${baseURL}${data.url}" style="${imgInsertStyle()}">`);
-                        // Force immediate save (not debounced) so image is persisted before user can ESC
-                        await flushSave();
-                    }
-                    break;
-                }
-            }
+        // Paste images and other files. Images stay images; everything else becomes a link.
+        const editorForFiles = document.getElementById('editor-content');
+        editorForFiles.addEventListener('dragover', (e) => {
+            if ([...(e.dataTransfer?.types || [])].includes('Files')) e.preventDefault();
+        });
+        editorForFiles.addEventListener('drop', async (e) => {
+            const files = [...(e.dataTransfer?.files || [])];
+            if (!files.length) return;
+            e.preventDefault();
+            await insertUploadedFiles(files);
+        });
+        editorForFiles.addEventListener('paste', async (e) => {
+            const files = filesFromClipboard(e.clipboardData);
+            if (!files.length) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            await insertUploadedFiles(files);
         });
 
         function copyPlainText(text) {
@@ -2632,10 +2705,115 @@
         });
 
 
+        document.getElementById('menu-files').addEventListener('click', () => {
+            dropdownMenu.classList.remove('show');
+            openFilesManager();
+        });
         document.getElementById('menu-help').addEventListener('click', () => {
             dropdownMenu.classList.remove('show');
             window.electronAPI.openHelp();
         });
+
+        async function openFilesManager() {
+            document.getElementById('files-overlay')?.remove();
+            const overlay = document.createElement('div');
+            overlay.id = 'files-overlay';
+            overlay.className = 'files-overlay';
+            overlay.innerHTML = `
+                <div class="files-panel">
+                    <div class="files-bar">
+                        <strong>附件</strong>
+                        <label class="files-zero"><input type="checkbox" id="files-zero"> 只看没被引用的</label>
+                        <button type="button" class="set-btn" id="files-delete-zero" hidden>删除这些</button>
+                        <button type="button" class="set-close" id="files-close">✕</button>
+                    </div>
+                    <p class="files-msg" id="files-msg">加载中…</p>
+                    <div class="files-list" id="files-list"></div>
+                </div>`;
+            document.body.appendChild(overlay);
+            const close = () => overlay.remove();
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+            overlay.querySelector('#files-close').onclick = close;
+            let rows = [];
+            const render = () => {
+                const zeroOnly = overlay.querySelector('#files-zero').checked;
+                const shown = rows.filter(r => !zeroOnly || !r.refs);
+                const del = overlay.querySelector('#files-delete-zero');
+                del.hidden = !zeroOnly;
+                del.disabled = shown.length === 0;
+                overlay.querySelector('#files-msg').textContent = rows.length
+                    ? (zeroOnly ? (shown.length ? shown.length + ' 个没有被引用' : '没有零引用的附件') : '共 ' + rows.length + ' 个附件')
+                    : '还没有附件';
+                const list = overlay.querySelector('#files-list');
+                list.innerHTML = shown.map(row => {
+                    const image = /\.(png|jpe?g|gif|webp|bmp|svg|avif)$/i.test(row.name);
+                    const href = row.url.startsWith('http') ? row.url : (baseURL + row.url);
+                    return `<div class="files-row${row.refs ? '' : ' zero'}">
+                        <span class="files-kind">${image ? '图' : '文件'}</span>
+                        <a class="name" href="${esc(href)}" target="_blank" rel="noopener">${esc(row.label || row.name)}</a>
+                        <span class="files-size">${formatFileSize(row.size)}</span>
+                        <button type="button" class="set-btn" data-refs="${esc(row.name)}">${row.refs || 0}</button>
+                        <button type="button" class="set-btn" data-del="${esc(row.name)}">删除</button>
+                    </div>`;
+                }).join('');
+            };
+            const load = async () => {
+                const res = await fetch(`${baseURL}/api/uploads`, { headers: headers() });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                rows = await res.json();
+                render();
+            };
+            try { await load(); } catch (e) {
+                overlay.querySelector('#files-msg').textContent = '附件列表打不开';
+                return;
+            }
+            overlay.querySelector('#files-zero').addEventListener('change', render);
+            overlay.querySelector('#files-delete-zero').onclick = async () => {
+                const names = rows.filter(r => !r.refs).map(r => r.name);
+                if (!names.length || !confirm('删除这 ' + names.length + ' 个没有被引用的附件？')) return;
+                await fetch(`${baseURL}/api/uploads/delete`, {
+                    method: 'POST', headers: headers(),
+                    body: JSON.stringify({ names })
+                });
+                await load();
+            };
+            overlay.querySelector('#files-list').addEventListener('click', async (e) => {
+                const refsBtn = e.target.closest('[data-refs]');
+                if (refsBtn) {
+                    const row = rows.find(r => r.name === refsBtn.dataset.refs);
+                    const used = (row && row.usedBy) || [];
+                    if (!used.length) return;
+                    if (used.length === 1) {
+                        close();
+                        openTodoByRef(used[0].id);
+                        return;
+                    }
+                    const menu = document.createElement('div');
+                    menu.className = 'link-ctx-menu';
+                    menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:30000;background:var(--bg-surface);border:1px solid var(--border-strong);border-radius:6px;padding:4px 0;min-width:180px;box-shadow:0 4px 12px var(--shadow);`;
+                    used.forEach(todo => {
+                        const it = document.createElement('div');
+                        it.textContent = (todo.date ? todo.date + '  ' : '') + (todo.title || 'Untitled');
+                        it.style.cssText = 'padding:6px 14px;font-size:12px;cursor:pointer;color:var(--text);';
+                        it.onclick = () => { menu.remove(); close(); openTodoByRef(todo.id); };
+                        menu.appendChild(it);
+                    });
+                    document.body.appendChild(menu);
+                    setTimeout(() => document.addEventListener('mousedown', function away(ev) {
+                        if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('mousedown', away); }
+                    }), 0);
+                    return;
+                }
+                const del = e.target.closest('[data-del]');
+                if (!del) return;
+                if (!confirm('删除附件 ' + del.dataset.del + ' ？文件会从服务器去掉。')) return;
+                await fetch(`${baseURL}/api/uploads/delete`, {
+                    method: 'POST', headers: headers(),
+                    body: JSON.stringify({ names: [del.dataset.del] })
+                });
+                await load();
+            });
+        }
         document.getElementById('menu-settings').addEventListener('click', () => {
             dropdownMenu.classList.remove('show');
             openSettings();

@@ -1267,26 +1267,70 @@ body.custom {
     }
 
     function openImageViewer(src) {
+        const list = [];
+        document.querySelectorAll('#editor-content img').forEach((node) => {
+            const url = node.currentSrc || node.src;
+            if (url && !list.includes(url)) list.push(url);
+        });
+        if (src && !list.includes(src)) list.unshift(src);
+        if (!list.length && src) list.push(src);
+        let index = Math.max(0, list.indexOf(src));
         const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed;inset:0;z-index:35000;background:#111;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:35000;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;';
         const img = document.createElement('img');
-        img.src = src;
         img.alt = '';
-        img.style.cssText = 'max-width:94vw;max-height:94vh;object-fit:contain;';
-        overlay.appendChild(img);
+        img.style.cssText = 'max-width:82vw;max-height:88vh;object-fit:contain;';
+        const btnStyle = 'position:absolute;top:50%;transform:translateY(-50%);width:48px;height:72px;border:none;border-radius:8px;background:rgba(255,255,255,0.14);color:#fff;font-size:32px;cursor:pointer;';
+        const prev = document.createElement('button');
+        prev.type = 'button';
+        prev.textContent = '‹';
+        prev.title = '上一张 (←)';
+        prev.style.cssText = btnStyle + 'left:16px;';
+        const next = document.createElement('button');
+        next.type = 'button';
+        next.textContent = '›';
+        next.title = '下一张 (→)';
+        next.style.cssText = btnStyle + 'right:16px;';
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.textContent = '×';
+        closeBtn.title = '关闭 (Esc)';
+        closeBtn.style.cssText = 'position:absolute;top:12px;right:16px;width:36px;height:36px;border:none;border-radius:8px;background:rgba(255,255,255,0.14);color:#fff;font-size:22px;cursor:pointer;';
+        const label = document.createElement('div');
+        label.style.cssText = 'position:absolute;bottom:16px;left:0;right:0;text-align:center;color:#ddd;font-size:13px;pointer-events:none;';
+        overlay.append(img, prev, next, closeBtn, label);
         const close = () => {
             document.removeEventListener('keydown', onKey, true);
             overlay.remove();
         };
-        const onKey = (e) => {
-            if (e.key !== 'Escape') return;
-            e.preventDefault();
-            e.stopPropagation();
-            close();
+        const show = (i) => {
+            if (!list.length) return;
+            index = (i + list.length) % list.length;
+            img.src = list[index];
+            label.textContent = list.length > 1 ? (index + 1) + ' / ' + list.length + '   ← → 切换' : '';
+            const many = list.length > 1;
+            prev.style.visibility = many ? 'visible' : 'hidden';
+            next.style.visibility = many ? 'visible' : 'hidden';
         };
-        overlay.addEventListener('click', close);
+        prev.addEventListener('click', (e) => { e.stopPropagation(); show(index - 1); });
+        next.addEventListener('click', (e) => { e.stopPropagation(); show(index + 1); });
+        closeBtn.addEventListener('click', (e) => { e.stopPropagation(); close(); });
+        img.addEventListener('click', (e) => e.stopPropagation());
+        overlay.addEventListener('click', (e) => {
+            if (e.target !== overlay) return;
+            const x = e.clientX / Math.max(1, overlay.clientWidth);
+            if (list.length > 1 && x < 0.2) show(index - 1);
+            else if (list.length > 1 && x > 0.8) show(index + 1);
+            else close();
+        });
+        const onKey = (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+            else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); show(index - 1); }
+            else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); show(index + 1); }
+        };
         document.addEventListener('keydown', onKey, true);
         document.body.appendChild(overlay);
+        show(index);
     }
 
     async function blobToPng(blob) {

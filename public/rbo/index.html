@@ -6,7 +6,7 @@
     <title>RBO</title>
     <base href="/rbo/">
     <link rel="icon" href="favicon.svg?v=3" type="image/svg+xml">
-    <link rel="stylesheet" href="quick-panel.css">
+    <link rel="stylesheet" href="quick-panel.css?v=5">
     <style>
         html, body { height: 100%; }
         .drag-handle {
@@ -36,7 +36,7 @@
             <span class="week-offset-badge" id="week-offset-badge" style="display:none;"></span>
         </div>
         <div class="top-bar-right">
-            <button class="btn-icon" id="pin-btn" title="Pin window">📌</button>
+            <!-- <button class="btn-icon" id="pin-btn" title="Pin window">📌</button> -->
             <button class="btn-icon" id="search-btn" title="Search todos (⌘O)">🔍</button>
             <div class="menu-wrap">
                 <button class="btn-icon" id="menu-btn" title="Menu">⋯</button>
@@ -44,6 +44,7 @@
                     <div class="menu-item" id="menu-open-folder">📂 Open Project Folder</div>
                     <div class="menu-item" id="menu-open-url">🌐 Open Local URL</div>
                     <div class="menu-item" id="menu-export-week">📋 Weekly Report</div>
+                    <div class="menu-item" id="menu-files">📎 Attachments</div>
                     <div class="menu-item" id="menu-help">❓ Help</div>
                     <div class="menu-divider"></div>
                     <div class="menu-item" id="menu-settings">⚙️ Settings  <span style="opacity:0.4;font-size:11px">⌘,</span></div>
@@ -82,8 +83,10 @@
                     <button class="toolbar-btn" id="tb-code" title="Insert code block">&lt;/&gt;</button>
                     <button class="toolbar-btn" id="tb-link" title="Insert link">🔗</button>
                     <button class="toolbar-btn" id="tb-img" title="Insert image">🖼</button>
+                    <button class="toolbar-btn" id="tb-file" title="添加附件">📎</button>
                     <button class="toolbar-btn" id="tb-compress" title="Toggle image compression">🗜</button>
                     <input type="file" id="img-upload" accept="image/*" multiple style="display:none">
+                    <input type="file" id="file-upload" multiple style="display:none">
                     <div style="margin-left:auto;display:flex;gap:inherit;">
                         <button class="toolbar-btn" id="tb-custom" title="Run custom JS (right-click: open folder)" style="display:none;">🔧</button>
                         <button class="toolbar-btn" id="tb-export" title="Export">⬇</button>
@@ -108,12 +111,12 @@
         </div>
     </div>
 
-    <script src="runtime.js?v=4"></script>
+    <script src="runtime.js?v=5"></script>
     <script src="codemirror-bundle.js"></script>
     <script>
         RBTodoOffline.ready.then(function () {
             var s = document.createElement('script');
-            s.src = 'quick-panel.js?v=4';
+            s.src = 'quick-panel.js?v=5';
             s.onerror = function () {
                 document.body.insertAdjacentHTML('beforeend', '<p style="padding:24px">无法加载 quick-panel.js</p>');
             };
