@@ -1160,6 +1160,7 @@ html { font-size: 16px; }
 
         .editor-toolbar {
             display: flex;
+            flex-wrap: wrap;
             gap: 0.25rem;
             padding: 0.25rem 0.875rem;
             flex-shrink: 0;
@@ -1217,6 +1218,12 @@ html { font-size: 16px; }
             min-height: 0;
         }
         .editor-content:focus { border-color: var(--accent-border); }
+        .editor-content ::selection,
+        .editor-content *::selection,
+        .editor-title::selection {
+            background: rgba(10, 132, 255, 0.28) !important;
+            color: inherit !important;
+        }
         .editor-content:empty::before {
             content: 'Write here... (supports paste images)';
             color: var(--text-fainter);

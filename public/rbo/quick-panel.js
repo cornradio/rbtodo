@@ -2696,11 +2696,13 @@
         document.getElementById('menu-export-week').addEventListener('click', async () => {
             dropdownMenu.classList.remove('show');
             try {
-                const res = await fetch(`${baseURL}/api/export-all?date=${selectedDate}`, { headers: headers() });
-                const data = await res.json();
+                const monday = weekDates[0];
+                const res = await fetch(`${baseURL}/api/export?date=${monday}`, { headers: headers() });
+                const days = await res.json();
+                const data = { [currentProject]: days && typeof days === 'object' ? days : {} };
                 const md = buildWeeklyMarkdown(data);
                 window.electronAPI.lockBlur();
-                window.electronAPI.openReportWindow(md, selectedDate);
+                window.electronAPI.openReportWindow(md, monday);
             } catch (e) { showToast('Export failed'); }
         });
 

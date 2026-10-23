@@ -6,7 +6,7 @@
     <title>RBO</title>
     <base href="/rbo/">
     <link rel="icon" href="favicon.svg?v=3" type="image/svg+xml">
-    <link rel="stylesheet" href="quick-panel.css?v=5">
+    <link rel="stylesheet" href="quick-panel.css?v=7">
     <style>
         html, body { height: 100%; }
         .drag-handle {
@@ -116,7 +116,7 @@
     <script>
         RBTodoOffline.ready.then(function () {
             var s = document.createElement('script');
-            s.src = 'quick-panel.js?v=5';
+            s.src = 'quick-panel.js?v=6';
             s.onerror = function () {
                 document.body.insertAdjacentHTML('beforeend', '<p style="padding:24px">无法加载 quick-panel.js</p>');
             };

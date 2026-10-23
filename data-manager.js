@@ -1,6 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
 import dayjs from 'dayjs';
+import isoWeek from 'dayjs/plugin/isoWeek';
+dayjs.extend(isoWeek);
 
 const DEFAULT_PROJECT = 'Default';
 
